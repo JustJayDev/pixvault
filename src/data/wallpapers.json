@@ -1,0 +1,70 @@
+[
+  {
+    "id": "neon-city-rain",
+    "title": "Neon City Rain",
+    "file": "neon-city-rain.jpg",
+    "width": 1440,
+    "height": 3120,
+    "size": 3.2,
+    "category": "cyberpunk",
+    "tags": ["neon", "city", "rain", "night"],
+    "featured": true,
+    "added": "2026-09-09"
+  },
+  {
+    "id": "violet-nebula",
+    "title": "Violet Nebula",
+    "file": "violet-nebula.jpg",
+    "width": 1440,
+    "height": 3200,
+    "size": 2.8,
+    "category": "space",
+    "tags": ["galaxy", "stars", "violet", "cosmos"],
+    "featured": true,
+    "added": "2026-09-09"
+  },
+  {
+    "id": "midnight-peaks",
+    "title": "Midnight Peaks",
+    "file": "midnight-peaks.jpg",
+    "width": 1080,
+    "height": 2400,
+    "size": 2.1,
+    "category": "nature",
+    "tags": ["mountains", "dark", "minimal", "fog"],
+    "added": "2026-09-09"
+  },
+  {
+    "id": "samurai-dusk",
+    "title": "Samurai at Dusk",
+    "file": "samurai-dusk.jpg",
+    "width": 1440,
+    "height": 3040,
+    "size": 4.6,
+    "category": "anime",
+    "tags": ["samurai", "sunset", "art", "katana"],
+    "added": "2026-09-09"
+  },
+  {
+    "id": "liquid-violet",
+    "title": "Liquid Violet",
+    "file": "liquid-violet.jpg",
+    "width": 1080,
+    "height": 2340,
+    "size": 1.7,
+    "category": "abstract",
+    "tags": ["gradient", "fluid", "violet", "smooth"],
+    "added": "2026-09-09"
+  },
+  {
+    "id": "cyber-grid",
+    "title": "Cyber Grid",
+    "file": "cyber-grid.jpg",
+    "width": 1080,
+    "height": 2400,
+    "size": 1.9,
+    "category": "gaming",
+    "tags": ["grid", "synthwave", "retro", "glow"],
+    "added": "2026-09-09"
+  }
+]

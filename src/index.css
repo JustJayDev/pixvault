@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  @apply bg-ink text-slate-100 antialiased;
+  font-family: Inter, system-ui, sans-serif;
+  overscroll-behavior-y: none;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.45);
+}
+
+/* ---------- scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #7c3aed55, #22d3ee55);
+  border-radius: 99px;
+}
+
+/* ---------- reusable layers ---------- */
+@layer components {
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+  }
+  .grad-text {
+    @apply bg-gradient-to-r from-vault-violet via-fuchsia-400 to-vault-cyan bg-clip-text text-transparent;
+  }
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 py-3 font-display font-semibold text-white shadow-lg shadow-vault-violet/30 transition-transform duration-200 active:scale-[.97];
+    background: linear-gradient(120deg, #7c3aed, #a855f7 45%, #22d3ee);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3 font-display font-semibold text-slate-200 backdrop-blur transition-colors duration-200 hover:bg-white/[0.09] active:scale-[.97];
+  }
+  .chip {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-sm font-medium text-slate-300 backdrop-blur transition-all duration-200 hover:border-vault-violet/50 hover:text-white active:scale-95;
+  }
+  .chip-active {
+    @apply border-transparent bg-gradient-to-r from-vault-violet to-vault-cyan text-white shadow-lg shadow-vault-violet/30;
+  }
+  /* shine sweep for buttons */
+  .shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+    background-size: 200% 100%;
+    animation: shimmer 2.6s linear infinite;
+    pointer-events: none;
+  }
+  /* card shine sweep */
+  .card-shine::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.16) 50%, transparent 58%);
+    background-size: 230% 100%;
+    background-position: -120% 0;
+    transition: background-position 0.9s ease;
+    pointer-events: none;
+  }
+  .card-shine:hover::before {
+    background-position: 130% 0;
+  }
+}
+
+/* ---------- aurora background ---------- */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(124, 58, 237, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 237, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
+}
+.aurora .orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+
+/* ---------- vault logo ---------- */
+.vault-door {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(0.77, 0, 0.18, 1);
+}
+.group:hover .vault-door,
+.vault-open .vault-door {
+  transform: rotateY(-105deg);
+}
+
+/* blur-up image */
+.blur-up {
+  filter: blur(14px);
+  transform: scale(1.04);
+  transition: filter 0.55s ease, transform 0.55s ease;
+}
+.blur-up.loaded {
+  filter: blur(0);
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
