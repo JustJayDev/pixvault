@@ -1,5 +1,5 @@
 /* PixVault service worker — scope: /pixvault/ only */
-const VERSION = 'pixvault-v2';
+const VERSION = 'pixvault-v3';
 const CORE = ['./', './index.html', './favicon.svg'];
 
 self.addEventListener('install', (e) => {
