@@ -57,7 +57,7 @@ export default function Admin() {
 
   const upload = async () => {
     if (!token || !file || !dims || !thumb) {
-      setMsg('⚠️ Token + image required')
+      setMsg('Token + image required')
       return
     }
     setBusy(true)
@@ -129,7 +129,7 @@ export default function Admin() {
               </>
             ) : (
               <>
-                <span className="text-3xl">🖼️</span>
+                <span className="text-slate-600"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m3.5 17.5 5-5 4 4 3.5-3.5 4.5 4.5"/></svg></span>
                 <span className="text-sm text-slate-400">Tap to pick an image</span>
               </>
             )}
