@@ -74,7 +74,7 @@ export default function Admin() {
       const catRes = await gh('src/data/wallpapers.json?ref=main')
       if (!catRes.ok) throw new Error('cannot read catalog')
       const cj = await catRes.json()
-      const catalog = JSON.parse(decodeURIComponent(escape(atob(cj.content))))
+      const catalog = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(cj.content), (c) => c.charCodeAt(0))))
       const entry = {
         id: slug,
         title: title.trim() || slug,

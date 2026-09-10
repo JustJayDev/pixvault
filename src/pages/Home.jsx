@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { wallpapers, categories, filterWallpapers } from '../lib/wallpapers.js'
 import WallpaperCard from '../components/WallpaperCard.jsx'
@@ -8,6 +8,11 @@ export default function Home() {
   const { tag } = useParams()
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    setCategory('all')
+    setQuery('')
+  }, [tag])
 
   const list = useMemo(() => {
     let items = filterWallpapers({ category, query, tag: tag || '' })

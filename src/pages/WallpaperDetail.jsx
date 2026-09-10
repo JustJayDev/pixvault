@@ -12,7 +12,7 @@ function fitToScreen(img, w, h) {
   const scale = Math.max(w / img.width, h / img.height)
   const cw = img.width * scale
   const ch = img.height * scale
-  ctx.drawImage(img, (w - cw) / 2, (h - cw) / 2, cw, ch)
+  ctx.drawImage(img, (w - cw) / 2, (h - ch) / 2, cw, ch)
   canvas.toBlob(
     (blob) => {
       const url = URL.createObjectURL(blob)

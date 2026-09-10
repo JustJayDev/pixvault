@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { thumbUrl, formatRes, resLabel } from '../lib/wallpapers.js'
+import { thumbUrl, origUrl, formatRes, resLabel } from '../lib/wallpapers.js'
 
 export default function WallpaperCard({ w, index = 0 }) {
   const [loaded, setLoaded] = useState(false)
+  const [src, setSrc] = useState(() => thumbUrl(w))
 
   return (
     <Link
@@ -14,10 +15,11 @@ export default function WallpaperCard({ w, index = 0 }) {
       <div className="relative w-full" style={{ aspectRatio: `${w.width} / ${w.height}` }}>
         {!loaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] to-white/[0.02]" />}
         <img
-          src={thumbUrl(w)}
+          src={src}
           alt={w.title}
           loading={index < 6 ? 'eager' : 'lazy'}
           onLoad={() => setLoaded(true)}
+          onError={() => src !== origUrl(w) && setSrc(origUrl(w))}
           className={`blur-up h-full w-full object-cover ${loaded ? 'loaded' : ''}`}
         />
         <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 via-black/25 to-transparent opacity-80 transition-opacity group-hover:opacity-95" />
