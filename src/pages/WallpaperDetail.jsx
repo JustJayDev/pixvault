@@ -67,6 +67,12 @@ export default function WallpaperDetail() {
     }
   }
 
+  const fitToScreenClick = () => {
+    const img = new Image()
+    img.onload = () => fitToScreen(img, w.width, w.height)
+    img.src = origUrl(w)
+  }
+
   return (
     <div>
       <Link to="/" className="group inline-flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-white">
@@ -80,7 +86,7 @@ export default function WallpaperDetail() {
           <img
             src={origUrl(w)}
             alt={w.title}
-            className={`max-h-[78vh] w-full cursor-zoom-in object-contain transition-transform duration-700 ease-out-expo ${zoom ? 'scale-110' : 'scale-100'}`}
+            className={`max-h-[62vh] w-full cursor-zoom-in object-contain transition-transform duration-700 ease-out-expo sm:max-h-[78vh] ${zoom ? 'scale-110' : 'scale-100'}`}
             onClick={() => setZoom(!zoom)}
           />
           <span className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/50 px-3 py-1.5 text-xs font-bold backdrop-blur">{formatRes(w)}</span>
@@ -90,7 +96,7 @@ export default function WallpaperDetail() {
         </Reveal>
 
         {/* info panel */}
-        <div>
+        <div className="detail-info">
           <Reveal delay={100}>
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{w.title}</h1>
           </Reveal>
@@ -111,20 +117,14 @@ export default function WallpaperDetail() {
             </div>
           </Reveal>
 
-          <Reveal delay={340}>
+          {/* desktop / tablet buttons */}
+          <Reveal delay={340} className="hidden sm:block">
             <div className="mt-6 space-y-3">
               <button onClick={downloadOriginal} className="btn-primary shine w-full">
                 <IconDownload />
                 Download original
               </button>
-              <button
-                onClick={() => {
-                  const img = new Image()
-                  img.onload = () => fitToScreen(img, w.width, w.height)
-                  img.src = origUrl(w)
-                }}
-                className="btn-ghost w-full"
-              >
+              <button onClick={fitToScreenClick} className="btn-ghost w-full">
                 Fit to screen (exact size)
               </button>
               <p className="text-center text-xs text-slate-500">Original file · {w.size} MB · never recompressed</p>
@@ -147,14 +147,30 @@ export default function WallpaperDetail() {
         </div>
       </div>
 
+      {/* mobile sticky action bar */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-ink/90 px-4 pb-safe pt-safe backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-3 py-3">
+          <button onClick={downloadOriginal} className="btn-primary shine flex-1 !py-2.5">
+            <IconDownload />
+            Download original
+          </button>
+          <button onClick={fitToScreenClick} className="btn-ghost !px-4 !py-2.5" aria-label="Fit to screen">
+            <IconExpand />
+          </button>
+        </div>
+      </div>
+
+      {/* related */}
       {rel.length > 0 && (
         <section className="mt-14">
           <Reveal>
             <h2 className="font-display text-xl font-bold">More like this</h2>
           </Reveal>
-          <div className="mt-4 columns-2 gap-4 sm:columns-3 lg:columns-4 [&>*]:mb-4">
+          <div className="scrollbar-none -mx-4 mt-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:px-0">
             {rel.map((r, i) => (
-              <WallpaperCard key={r.id} w={r} index={i} />
+              <div key={r.id} className="w-40 shrink-0 sm:w-auto">
+                <WallpaperCard w={r} index={i} />
+              </div>
             ))}
           </div>
           <Reveal className="mt-8 text-center">

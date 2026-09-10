@@ -9,13 +9,13 @@ import { IconTile, IconLock, IconBolt, IconPhone, IconSearch, IconImage } from '
 function Hero({ query, onSearch }) {
   const featured = wallpapers.filter((w) => w.featured).slice(0, 3)
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-white/10 px-6 py-14 text-center sm:py-20"
+    <section className="relative overflow-hidden rounded-[2rem] border border-white/10 px-5 py-12 text-center sm:px-6 sm:py-20"
       style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(124,58,237,.28), transparent 60%), radial-gradient(ellipse 60% 50% at 85% 110%, rgba(34,211,238,.15), transparent 60%)' }}>
       <div className="animate-vault-open mx-auto mb-6 w-fit">
         <VaultLogo size={76} open />
       </div>
 
-      <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl">
+      <h1 className="hero-title font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl">
         <Words text="Wallpapers in" startDelay={150} />
         <br />
         <span className="grad-text"><Words text="full quality." startDelay={300} /></span>

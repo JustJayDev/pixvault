@@ -54,8 +54,8 @@ export default function WallpaperCard({ w, index = 0 }) {
             <p className="truncate font-display text-sm font-semibold text-white transition-transform duration-300 group-hover:-translate-y-0.5">{w.title}</p>
             <p className="mt-0.5 text-[11px] text-slate-300 transition-transform duration-300 group-hover:-translate-y-0.5">{formatRes(w)}</p>
           </div>
-          <span className="flex h-8 w-8 shrink-0 translate-y-2 items-center justify-center rounded-full bg-gradient-to-br from-vault-violet to-vault-cyan opacity-0 shadow-lg shadow-vault-violet/40 transition-all duration-300 ease-out-expo group-hover:translate-y-0 group-hover:opacity-100">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <span className="group-show-tap flex h-9 w-9 shrink-0 translate-y-2 items-center justify-center rounded-full bg-gradient-to-br from-vault-violet to-vault-cyan opacity-0 shadow-lg shadow-vault-violet/40 transition-all duration-300 ease-out-expo group-hover:translate-y-0 group-hover:opacity-100">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
             </svg>
           </span>

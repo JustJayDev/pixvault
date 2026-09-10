@@ -57,7 +57,7 @@ export default function Layout({ children }) {
       <div className="grain-overlay" aria-hidden="true" />
       <ScrollProgress />
 
-      <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-out-expo ${scrolled ? 'glass shadow-lg shadow-black/30' : 'bg-transparent'}`}>
+      <header className={`fixed inset-x-0 top-0 z-50 pt-safe transition-all duration-500 ease-out-expo ${scrolled ? 'glass shadow-lg shadow-black/30' : 'bg-transparent'}`}>
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="group flex items-center gap-2.5">
             <VaultLogo size={34} />
@@ -72,7 +72,7 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-24 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-40 pt-24 sm:px-6 sm:pb-24">{children}</main>
 
       <footer className="relative border-t border-white/5">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-vault-violet/60 to-transparent" />

@@ -199,3 +199,51 @@ body { min-height: 100dvh; }
   .reveal { opacity: 1; transform: none; }
   .grain-overlay { display: none; }
 }
+
+/* ============ MOBILE / ADAPTIVE LAYER ============ */
+
+/* 1. Notch & gesture-bar safety on phones */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* 2. Kill iOS auto-zoom on inputs (font-size >= 16px) */
+@media (max-width: 640px) {
+  input, textarea, select { font-size: 16px !important; }
+  /* 3. Bigger tap targets on touch screens */
+  .chip { padding: .55rem 1.1rem; }
+  .nav-link-tap { padding: .6rem 1rem; }
+  /* 4. Hero scales down cleanly on small screens */
+  .hero-title { font-size: clamp(2rem, 9vw, 3.75rem); }
+  /* 5. Lighter effects on small GPUs — keep it 60fps */
+  .aurora .orb { filter: blur(60px); }
+  .grain-overlay { animation: none; opacity: .025; }
+  .card-shine::before, .shine::after { display: none; }
+  /* 6. Comfortable reading width for detail pages */
+  .detail-info { max-width: 640px; }
+}
+
+/* 7. Touch devices: no hover-only tricks, always show actions */
+@media (hover: none) {
+  .tilt { transform: none !important; }
+  .tilt-glow { display: none; }
+  .group .group-show-tap { opacity: 1 !important; transform: none !important; }
+  .card-shine::before { display: none; }
+  /* sticky action bar spacing handled per-component */
+}
+
+/* 8. Ultra-wide / desktop: cap content width so it stays premium */
+@media (min-width: 1600px) {
+  .max-w-6xl { max-width: 72rem; }
+}
+
+/* 9. Landscape phones: shrink header so more wallpaper is visible */
+@media (max-height: 480px) and (orientation: landscape) {
+  header { height: 3rem; }
+  main { padding-top: 4.5rem !important; }
+  .hero-title { font-size: clamp(1.6rem, 6vw, 2.5rem); }
+}
+
+/* 10. Respect data-saver: skip heavy blur layers */
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: rgba(10,10,16,.85); backdrop-filter: none; }
+}
