@@ -1,13 +1,15 @@
 import React, { useRef, useState } from 'react'
 import VaultLogo from '../components/VaultLogo.jsx'
+import { categories } from '../lib/wallpapers.js'
 
 const REPO = 'JustJayDev/pixvault'
+const CATS = categories.filter((c) => c !== 'all')
 
 export default function Admin() {
   const [token, setToken] = useState('')
   const [file, setFile] = useState(null)
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState('abstract')
+  const [category, setCategory] = useState(CATS[0] || 'devotional')
   const [tags, setTags] = useState('')
   const [featured, setFeatured] = useState(false)
   const [dims, setDims] = useState(null)
@@ -146,7 +148,7 @@ export default function Admin() {
           <label className="block">
             <span className={labelCls}>Category</span>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-              {['abstract', 'anime', 'cyberpunk', 'gaming', 'minimal', 'nature', 'space'].map((c) => (
+              {CATS.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>

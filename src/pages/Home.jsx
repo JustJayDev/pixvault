@@ -6,7 +6,7 @@ import VaultLogo from '../components/VaultLogo.jsx'
 import { Reveal, Words, Tilt } from '../components/motion.jsx'
 import { IconTile, IconLock, IconBolt, IconPhone, IconSearch, IconImage, IconSpark, IconArrow } from '../components/icons.jsx'
 
-function Hero({ query, onSearch }) {
+function Hero({ query, onSearch, onRandom }) {
   const featured = wallpapers.filter((w) => w.featured).slice(0, 3)
   return (
     <section className="relative overflow-hidden rounded-[2rem] border border-white/10 px-5 py-12 text-center sm:px-6 sm:py-20"
