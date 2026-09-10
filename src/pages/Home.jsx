@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { wallpapers, filterWallpapers } from '../lib/wallpapers.js'
+import { useParams, Link } from 'react-router-dom'
+import { wallpapers, filterWallpapers, latest, top, randomOf, trendingTags } from '../lib/wallpapers.js'
 import WallpaperCard from '../components/WallpaperCard.jsx'
 import VaultLogo from '../components/VaultLogo.jsx'
 import { Reveal, Words, Tilt } from '../components/motion.jsx'
-import { IconTile, IconLock, IconBolt, IconPhone, IconSearch, IconImage } from '../components/icons.jsx'
+import { IconTile, IconLock, IconBolt, IconPhone, IconSearch, IconImage, IconSpark, IconArrow } from '../components/icons.jsx'
 
 function Hero({ query, onSearch }) {
   const featured = wallpapers.filter((w) => w.featured).slice(0, 3)
@@ -39,7 +39,9 @@ function Hero({ query, onSearch }) {
             className="w-full rounded-2xl bg-transparent py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 outline-none"
           />
         </div>
-        <span className="glass hidden rounded-2xl px-4 py-3 font-display text-sm font-bold text-slate-200 sm:block">{wallpapers.length}</span>
+        <button onClick={onRandom} className="glass flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-2xl text-slate-300 transition-all duration-300 hover:border-vault-violet/50 hover:text-white active:scale-95" title="Shuffle" aria-label="Shuffle wallpapers">
+          <IconSpark size={19} />
+        </button>
       </div>
 
       {/* floating featured cards */}
@@ -65,25 +67,74 @@ export default function Home() {
   const { tag } = useParams()
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState('latest')
+  const [randSeed, setRandSeed] = useState(0)
 
-  useEffect(() => { setCategory('all'); setQuery('') }, [tag])
+  useEffect(() => { setCategory('all'); setQuery(''); setSort('latest') }, [tag])
 
   const list = useMemo(() => {
     let items = filterWallpapers({ category, query, tag: tag || '' })
-    if (category === 'all' && !query && !tag) {
+    if (sort === 'top') items = items.filter((w) => top.includes(w)).sort((a, b) => top.indexOf(a) - top.indexOf(b))
+    else if (sort === 'random') {
+      // deterministic shuffle per seed so re-renders keep order until reshuffle
+      const seed = randSeed
+      items = [...items].map((w) => ({ w, k: Math.sin(seed * 999 + w.id.length * 31 + w.width) })).sort((a, b) => a.k - b.k).map((x) => x.w)
+    } else items = items.filter((w) => latest.includes(w)).sort((a, b) => latest.indexOf(a) - latest.indexOf(b))
+    if (category === 'all' && !query && !tag && sort === 'latest') {
       items = [...items].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0))
     }
     return items
-  }, [category, query, tag])
+  }, [category, query, tag, sort, randSeed])
+
+  const shuffle = () => { setSort('random'); setRandSeed((s) => s + 1) }
 
   return (
     <div>
-      <Hero query={query} onSearch={setQuery} />
+      <Hero query={query} onSearch={setQuery} onRandom={shuffle} />
       <CategoryBar category={category} setCategory={setCategory} tag={tag} />
+      <SortBar sort={sort} setSort={setSort} count={list.length} />
+      <TrendingRow activeTag={tag} />
       <Grid list={list} tag={tag} />
       <PromiseStrip />
       <Marquee />
     </div>
+  )
+}
+
+function SortBar({ sort, setSort, count }) {
+  const tabs = [
+    { id: 'latest', label: 'Latest' },
+    { id: 'top', label: 'Top' },
+    { id: 'random', label: 'Random' },
+  ]
+  return (
+    <Reveal className="mt-4 flex items-center justify-between gap-3">
+      <div className="glass flex rounded-full p-1">
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setSort(t.id)}
+            className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-300 ${sort === t.id ? 'bg-gradient-to-r from-vault-violet to-vault-cyan text-white shadow-lg shadow-vault-violet/30' : 'text-slate-400 hover:text-white'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-slate-500">{count} {count === 1 ? 'wallpaper' : 'wallpapers'}</span>
+    </Reveal>
+  )
+}
+
+function TrendingRow({ activeTag }) {
+  if (!trendingTags.length) return null
+  return (
+    <Reveal className="mt-4">
+      <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.15em] text-slate-500">
+          <IconSpark size={13} /> Trending
+        </span>
+        {trendingTags.map((t) => (
+          <Link key={t} to={`/tag/${t}`} className={`chip shrink-0 !py-1.5 !text-xs ${activeTag === t ? 'chip-active' : ''}`}>#{t}</Link>
+        ))}
+      </div>
+    </Reveal>
   )
 }
 

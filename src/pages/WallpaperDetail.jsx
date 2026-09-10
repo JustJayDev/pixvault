@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { byId, related, origUrl, formatRes } from '../lib/wallpapers.js'
+import { byId, related, origUrl, formatRes, wallpapers, randomOf } from '../lib/wallpapers.js'
 import WallpaperCard from '../components/WallpaperCard.jsx'
 import NotFound from './NotFound.jsx'
 import { Reveal } from '../components/motion.jsx'
@@ -51,6 +51,10 @@ export default function WallpaperDetail() {
   if (!w) return <NotFound />
 
   const rel = related(w)
+  const idx = wallpapers.findIndex((x) => x.id === w.id)
+  const prev = wallpapers[(idx - 1 + wallpapers.length) % wallpapers.length]
+  const next = wallpapers[(idx + 1) % wallpapers.length]
+  const goRandom = () => { window.location.hash = `#/w/${randomOf(wallpapers.filter((x) => x.id !== w.id)).id}` }
 
   const downloadOriginal = async () => {
     try {
@@ -124,6 +128,11 @@ export default function WallpaperDetail() {
                 <IconDownload />
                 Download original
               </button>
+              <div className="grid grid-cols-3 gap-3">
+                <Link to={`/w/${prev.id}`} className="btn-ghost !px-0 text-center text-sm" title="Previous wallpaper">← Prev</Link>
+                <button onClick={goRandom} className="btn-ghost !px-0 text-center text-sm" title="Random wallpaper">🎲 Random</button>
+                <Link to={`/w/${next.id}`} className="btn-ghost !px-0 text-center text-sm" title="Next wallpaper">Next →</Link>
+              </div>
               <button onClick={fitToScreenClick} className="btn-ghost w-full">
                 Fit to screen (exact size)
               </button>
@@ -154,9 +163,9 @@ export default function WallpaperDetail() {
             <IconDownload />
             Download original
           </button>
-          <button onClick={fitToScreenClick} className="btn-ghost !px-4 !py-2.5" aria-label="Fit to screen">
-            <IconExpand />
-          </button>
+          <Link to={`/w/${prev.id}`} className="btn-ghost !px-3.5 !py-2.5" aria-label="Previous wallpaper">←</Link>
+          <button onClick={goRandom} className="btn-ghost !px-3.5 !py-2.5" aria-label="Random wallpaper">🎲</button>
+          <Link to={`/w/${next.id}`} className="btn-ghost !px-3.5 !py-2.5" aria-label="Next wallpaper">→</Link>
         </div>
       </div>
 

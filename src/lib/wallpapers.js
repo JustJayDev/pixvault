@@ -27,5 +27,30 @@ export const formatRes = (w) => `${w.width} × ${w.height}`
 export const resLabel = (w) =>
   Math.max(w.width, w.height) >= 3800 ? '4K' : Math.max(w.width, w.height) >= 2000 ? '2K' : 'HD'
 export const byId = (id) => wallpapers.find((w) => w.id === id)
-export const related = (w, n = 4) =>
-  wallpapers.filter((x) => x.id !== w.id && x.category === w.category).slice(0, n)
+
+/* ---- Wallhaven-inspired discovery ---- */
+export const latest = [...wallpapers].reverse()
+export const top = [...wallpapers].sort(
+  (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.width * b.height - a.width * a.height,
+)
+
+export function randomOf(list = wallpapers) {
+  return list.length ? list[Math.floor(Math.random() * list.length)] : null
+}
+
+export const trendingTags = Object.entries(
+  wallpapers.reduce((acc, w) => {
+    for (const t of w.tags || []) acc[t] = (acc[t] || 0) + 1
+    return acc
+  }, {}),
+)
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 8)
+  .map(([t]) => t)
+
+export const related = (w, n = 4) => {
+  const same = wallpapers.filter((x) => x.id !== w.id && x.category === w.category)
+  if (same.length >= n) return same.slice(0, n)
+  const rest = latest.filter((x) => x.id !== w.id && !same.includes(x))
+  return [...same, ...rest].slice(0, n)
+}

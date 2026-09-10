@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import VaultLogo from './VaultLogo.jsx'
 import { Reveal } from './motion.jsx'
+import { wallpapers, randomOf } from '../lib/wallpapers.js'
 
 function Aurora() {
   return (
@@ -66,6 +67,10 @@ export default function Layout({ children }) {
             </span>
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => { window.location.hash = `#/w/${randomOf(wallpapers).id}` }}
+              className="rounded-full px-3 py-2 text-sm font-medium text-slate-400 transition-all duration-300 hover:bg-white/5 hover:text-white active:scale-95"
+              title="Random wallpaper" aria-label="Random wallpaper">🎲</button>
             <NavLink to="/" end className={navLink}>Vault</NavLink>
             <NavLink to="/about" className={navLink}>About</NavLink>
           </nav>
