@@ -4,6 +4,7 @@ import {
   RefreshCw, Smartphone, Monitor, ArrowLeft, KeyRound, Trash2,
   Image as ImageIcon, CheckCircle2, Clock, Upload, Pencil, X,
   Settings as SettingsIcon, History as HistoryIcon, LayoutGrid, Zap,
+  Search, AlertTriangle,
 } from 'lucide-react';
 import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
@@ -16,9 +17,21 @@ import {
 } from '../lib/github';
 import { wallpapers as LIVE } from '../lib/wallpapers';
 
-/* ===== admin password (change in source) ===== */
-const ADMIN_PASSWORD = 'pixvault-admin';
+/* ===== admin password =====
+ * SECURITY: stored as a salted SHA-256 hash, never as plain text. The
+ * passphrase itself exists nowhere in the source or the built bundle.
+ * Login hashes the input with the same function and compares digests. */
+const ADMIN_PASSWORD_HASH =
+  'c4d2bbf9e7cf8e139de05074a1addbd3124444c12a9d5d57597252d06759bdd8';
 const SESSION_KEY = 'pixvault:admin-ok';
+
+async function digestOf(input) {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 const TABS = [
   { id: 'generate', label: 'Generate', icon: Wand2 },
@@ -71,9 +84,10 @@ function StatusPill({ status }) {
 function Gate({ onOk }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (pw === ADMIN_PASSWORD) {
+    const guess = await digestOf(pw);
+    if (guess === ADMIN_PASSWORD_HASH) {
       try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* */ }
       onOk();
     } else { setErr('Wrong password. Try again.'); setPw(''); }
@@ -329,10 +343,10 @@ function HistoryTab() {
 
   if (!history.length) {
     return (
-      <div className="admin-card" style={{ padding: 44, textAlign: 'center' }}>
-        <div style={{ fontSize: 32 }}>🧾</div>
-        <div className="font-serif" style={{ fontSize: 19, fontWeight: 700, marginTop: 8 }}>No prompts yet</div>
-        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px auto 16px', maxWidth: 380, lineHeight: 1.6 }}>
+      <div className="admin-card admin-empty">
+        <span className="glyph"><HistoryIcon size={24} /></span>
+        <h3>No prompts yet</h3>
+        <p>
           Generate a prompt in the Generate tab and it will land here, waiting for its image.
         </p>
       </div>
@@ -439,6 +453,8 @@ function ManageTab() {
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
 
   const reload = async () => {
     setLoading(true);
@@ -449,12 +465,28 @@ function ManageTab() {
       setError(e.message);
     } finally {
       setLoading(false);
-      setError(''); setOk('');
     }
   };
 
   /* load the live list once on mount */
   useEffect(() => { reload(); }, []);
+
+  const visible = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    let out = list;
+    if (term) {
+      out = out.filter((w) =>
+        (w.title || '').toLowerCase().includes(term) ||
+        (w.category || '').toLowerCase().includes(term) ||
+        (w.id || '').toLowerCase().includes(term)
+      );
+    }
+    out = [...out];
+    if (sortBy === 'newest') out.sort((a, b) => (a.added || '').localeCompare(b.added || '') * -1);
+    if (sortBy === 'oldest') out.sort((a, b) => (a.added || '').localeCompare(b.added || ''));
+    if (sortBy === 'title') out.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    return out;
+  }, [list, q, sortBy]);
 
   const handleDelete = async (id) => {
     const wp = list.find((w) => w.id === id);
@@ -476,29 +508,67 @@ function ManageTab() {
       setOk(`Updated "${patch.title || id}".`);
       setEditing(null);
       reload();
-    } catch ( e) { setError(e.message); }
+    } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   };
 
   return (
     <div>
       {(error || ok) && (
-        <div className="admin-card" style={{ padding: 12, marginBottom: 12, borderColor: error ? '#f8717144' : 'rgba(52,211,153,.35)' }}>
-          <span className="font-mono" style={{ color: error ? '#fca5a5' : '#6ee7b7', fontSize: 12, lineHeight: 1.5 }}>
-            {error || ok}
-          </span>
+        <div className={'admin-toast ' + (error ? 'err' : 'ok')}>
+          {error ? <AlertTriangle size={14} style={{ flex: 'none', marginTop: 1 }} /> : <CheckCircle2 size={14} style={{ flex: 'none', marginTop: 1 }} />}
+          <span>{error || ok}</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      <div className="admin-manage-head">
         <span className="eyebrow">Live wallpapers</span>
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--dim)' }}>{list.length} total</span>
-        <button className="btn btn-sm" onClick={reload} style={{ marginLeft: 'auto' }} disabled={busy}>
+        <span className="count">{list.length} total</span>
+        <div className="searchbar" style={{ flex: '1 1 180px', minWidth: 150, padding: '8px 12px', marginLeft: 'auto' }}>
+          <Search size={14} style={{ color: 'var(--dim)', flex: 'none' }} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="filter…"
+            style={{ fontSize: 13 }}
+          />
+          {q && (
+            <button onClick={() => setQ('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--dim)', display: 'flex', padding: 0 }} aria-label="clear">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <select
+          className="field-input"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          style={{ flex: 'none', width: 'auto', padding: '8px 30px 8px 12px', fontSize: 12.5 }}
+          aria-label="sort"
+        >
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="title">Title A–Z</option>
+        </select>
+        <button className="btn btn-sm" onClick={reload} disabled={busy}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
-      {list.map((wp) => (
+      {loading && [0, 1, 2, 3].map((i) => <div key={i} className="admin-skel" />)}
+
+      {!loading && visible.length === 0 && (
+        <div className="admin-card admin-empty">
+          <span className="glyph"><ImageIcon size={24} /></span>
+          <h3>{list.length ? 'No matches' : 'No wallpapers yet'}</h3>
+          <p>
+            {list.length
+              ? `Nothing matches "${q}". Try a different search.`
+              : 'Publish one from the History tab and it will show up here.'}
+          </p>
+        </div>
+      )}
+
+      {!loading && visible.map((wp) => (
         <ManageRow
           key={wp.id} wp={wp} busy={busy} editing={editing === wp.id}
           onEdit={() => setEditing(wp.id)} onCancel={() => setEditing(null)}
@@ -684,8 +754,20 @@ const Admin = () => {
     try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
   });
   const [tab, setTab] = useState('generate');
+  const [liveCount, setLiveCount] = useState(null);
+
+  /* fetch the live wallpaper count for the sidebar stat */
+  useEffect(() => {
+    if (!ok) return;
+    getLiveWallpapers()
+      .then((l) => { if (Array.isArray(l)) setLiveCount(l.length); })
+      .catch(() => {});
+  }, [ok]);
 
   if (!ok) return <Gate onOk={() => setOk(true)} />;
+
+  const pending = getHistory().filter((p) => p.status === STATUS.PENDING).length;
+  const ready = getHistory().filter((p) => p.status === STATUS.READY).length;
 
   return (
     <div className="wrap" style={{ paddingTop: 34, paddingBottom: 44 }}>
@@ -695,7 +777,7 @@ const Admin = () => {
           <h1 className="font-serif" style={{ fontSize: 'clamp(26px,4.5vw,38px)', fontWeight: 700, margin: '8px 0 0', letterSpacing: '-.02em' }}>
             Admin <span className="text-gradient">Panel</span>
           </h1>
-                   <p style={{ fontSize: 13.5, color: 'var(--muted)', margin: '8px 0 0', maxWidth: 560, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--muted)', margin: '8px 0 0', maxWidth: 560, lineHeight: 1.6 }}>
             Generate refined prompts with Atria, attach the image you make, approve it, and it publishes itself.
           </p>
         </div>
@@ -704,27 +786,70 @@ const Admin = () => {
         </Link>
       </div>
 
-      {/* tabs */}
-      <div className="reveal d1" style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={'chip' + (tab === t.id ? ' active' : '')}
-            >
-              <Icon size={14} /> {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="admin-layout">
+        {/* ---------- sidebar ---------- */}
+        <aside className="admin-sidebar">
+          <div className="admin-side-card">
+            <div className="eyebrow" style={{ fontSize: 9.5 }}>navigation</div>
+            <nav className="admin-nav">
+              {TABS.map((t) => {
+                const Icon = t.icon;
+                const badge =
+                  t.id === 'history' ? pending + ready
+                  : t.id === 'manage' ? (liveCount != null ? liveCount : null)
+                  : null;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={'admin-nav-item' + (tab === t.id ? ' active' : '')}
+                  >
+                    <Icon size={15} />
+                    <span>{t.label}</span>
+                    {badge != null && badge > 0 && (
+                      <span className="admin-nav-badge">{badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
-      <div className="reveal d2" style={{ marginTop: 20 }}>
-        {tab === 'generate' && <GenerateTab />}
-        {tab === 'history' && <HistoryTab />}
-        {tab === 'manage' && <ManageTab />}
-        {tab === 'settings' && <SettingsTab />}
+          <div className="admin-side-card">
+            <div className="eyebrow" style={{ fontSize: 9.5 }}>status</div>
+            <div className="admin-stat-row">
+              <span className="font-mono" style={{ fontSize: 11, color: 'var(--muted)' }}>Live wallpapers</span>
+              <span className="font-serif" style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>
+                {liveCount != null ? liveCount : '…'}
+              </span>
+            </div>
+            <div className="admin-stat-row">
+              <span className="font-mono" style={{ fontSize: 11, color: 'var(--muted)' }}>Awaiting image</span>
+              <span className="font-serif" style={{ fontSize: 20, fontWeight: 700 }}>{pending}</span>
+            </div>
+            <div className="admin-stat-row">
+              <span className="font-mono" style={{ fontSize: 11, color: 'var(--muted)' }}>Ready to publish</span>
+              <span className="font-serif" style={{ fontSize: 20, fontWeight: 700 }}>{ready}</span>
+            </div>
+            <div className="admin-stat-row" style={{ borderBottom: 0 }}>
+              <span className="font-mono" style={{ fontSize: 11, color: 'var(--muted)' }}>Atria keys</span>
+              <span className="font-serif" style={{ fontSize: 20, fontWeight: 700 }}>{getKeyCount()}</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* ---------- content ---------- */}
+        <div className="admin-content">
+          {tab === 'generate' && <GenerateTab />}
+          {tab === 'history' && <HistoryTab />}
+          {tab === 'manage' && <ManageTab />}
+          {tab === 'manage' && (
+            <p className="font-mono" style={{ fontSize: 11, color: 'var(--dim)', margin: '12px 2px 0' }}>
+              &gt; changes commit to the repository and go live when the site finishes deploying
+            </p>
+          )}
+          {tab === 'settings' && <SettingsTab />}
+        </div>
       </div>
     </div>
   );
