@@ -1,5 +1,17 @@
 [
   {
+    "id": "zz-vault-e2e-test",
+    "title": "Vault E2E Test",
+    "file": "zz-vault-e2e-test.png",
+    "thumb": "zz-vault-e2e-test-thumb.png",
+    "category": "phone",
+    "tags": [
+      "test"
+    ],
+    "source": "e2e",
+    "createdAt": "2026-09-27T15:59:45.406Z"
+  },
+  {
     "id": "golden-divinity",
     "title": "Golden Divinity",
     "file": "golden-divinity.jpg",
