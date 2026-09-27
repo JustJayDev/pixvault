@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Lock, ShieldCheck, Sparkles, Copy, Check, Wand2, BarChart3,
   RefreshCw, Smartphone, Monitor, ArrowLeft, KeyRound, Trash2,
@@ -12,7 +12,7 @@ import { getKeyCount, getExtraKeys, setExtraKeys, generatePrompt } from '../lib/
 import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
 import {
   getToken, setToken, clearToken, publishWallpaper, deleteWallpaper,
-  updateWallpaper, getDimensions, deviceFor, slugify,
+  updateWallpaper, getDimensions, deviceFor, slugify, getLiveWallpapers,
 } from '../lib/github';
 import { wallpapers as LIVE } from '../lib/wallpapers';
 
@@ -438,11 +438,23 @@ function ManageTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const reload = () => {
-    setList([...LIVE]);
-    setError(''); setOk('');
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const live = await getLiveWallpapers();
+      if (Array.isArray(live)) setList([...live]);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setError(''); setOk('');
+    }
   };
+
+  /* load the live list once on mount */
+  useEffect(() => { reload(); }, []);
 
   const handleDelete = async (id) => {
     const wp = list.find((w) => w.id === id);

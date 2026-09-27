@@ -48,11 +48,17 @@ async function gh(path, { method = 'GET', body } = {}) {
   return json;
 }
 
-/* read a file's current sha (needed to update/delete it) */
+/* read a file's current sha (needed to update/delete it).
+   Always fetched fresh — a cached sha causes 409 conflicts when
+   anything else has committed since the page loaded. */
 async function getSha(path) {
   try {
-    const r = await fetch(`${API}/contents/${path}?ref=${BRANCH}`, {
-      headers: { Authorization: `Bearer ${getToken()}`, Accept: 'application/vnd.github+json' },
+    const r = await fetch(`${API}/contents/${path}?ref=${BRANCH}&_t=${Date.now()}`, {
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        Accept: 'application/vnd.github+json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
     });
     if (!r.ok) return null;
     const j = await r.json();
@@ -60,13 +66,24 @@ async function getSha(path) {
   } catch { return null; }
 }
 
-/* commit a single file */
+/* commit a single file — retries once on 409 by refetching the sha */
 async function commitFile(path, content, message) {
-  const sha = await getSha(path);
-  return gh(`/contents/${path}`, {
-    method: 'PUT',
-    body: { message, content, sha, branch: BRANCH },
-  });
+  const attempt = async () => {
+    const sha = await getSha(path);
+    return gh(`/contents/${path}`, {
+      method: 'PUT',
+      body: { message, content, sha, branch: BRANCH },
+    });
+  };
+  try {
+    return await attempt();
+  } catch (e) {
+    /* 409 = the sha we held is stale. Refetch and retry once. */
+    if (String(e.message).includes('409') || String(e.message).toLowerCase().includes('does not match')) {
+      return await attempt();
+    }
+    throw e;
+  }
 }
 
 /* file → base64 (data-url free) */
@@ -134,7 +151,37 @@ export function deviceFor(w, h) {
   return h > w ? 'phone' : 'desktop';
 }
 
-/* ---------- the full publish flow ---------- */
+/* fetch the LIVE wallpapers.json from GitHub at publish time.
+   The statically-imported bundle is stale the moment any publish
+   happens, which causes 409s and lost entries. Always read fresh. */
+let liveCache = null;
+async function getLiveJson() {
+  try {
+    const r = await fetch(`${API}/contents/src/data/wallpapers.json?ref=${BRANCH}&_t=${Date.now()}`, {
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        Accept: 'application/vnd.github+json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
+    if (!r.ok) throw new Error(`fetch live json: HTTP ${r.status}`);
+    const j = await r.json();
+    const text = atob(j.content.replace(/\n/g, ''));
+    const parsed = JSON.parse(text);
+    liveCache = j.sha;
+    return parsed;
+  } catch (e) {
+    /* fall back to the bundled copy if the fetch fails */
+    return data;
+  }
+}
+
+/* public helper for the Wallpapers tab to list live entries */
+export async function getLiveWallpapers() {
+  return await getLiveJson();
+}
+
+/* the full publish flow ---------- */
 export async function publishWallpaper({ file, entry, commitMsg }) {
   if (!getToken()) throw new Error('No GitHub token set. Open Settings in the admin panel.');
   if (!file) throw new Error('No image file attached.');
@@ -146,6 +193,9 @@ export async function publishWallpaper({ file, entry, commitMsg }) {
   const imgB64 = await fileToBase64(file);
   const thumbB64 = await makeThumb(file);
 
+  /* read the live list so we never clobber a concurrent publish */
+  const live = await getLiveJson();
+
   const steps = [];
 
   // 1) original image
@@ -156,8 +206,8 @@ export async function publishWallpaper({ file, entry, commitMsg }) {
     steps.push(commitFile(`public/wallpapers/thumbs/${thumbName}`, thumbB64, `wallpaper: thumb ${thumbName}`));
   }
 
-  // 3) update wallpapers.json
-  const next = data
+  // 3) update wallpapers.json against the live copy
+  const next = live
     .filter((w) => w.id !== entry.id)
     .concat([{ ...entry, file: fullName, thumb: `thumbs/${thumbName}` }]);
   const jsonB64 = btoa(unescape(encodeURIComponent(JSON.stringify(next, null, 2))));
@@ -172,7 +222,8 @@ export async function publishWallpaper({ file, entry, commitMsg }) {
 /* ---------- delete a wallpaper ---------- */
 export async function deleteWallpaper(id) {
   if (!getToken()) throw new Error('No GitHub token set.');
-  const wp = data.find((w) => w.id === id);
+  const live = await getLiveJson();
+  const wp = live.find((w) => w.id === id);
   if (!wp) throw new Error('Wallpaper not found.');
 
   // remove files (ignore failure if already gone)
@@ -185,8 +236,8 @@ export async function deleteWallpaper(id) {
     try { await gh(`/contents/public/wallpapers/${wp.thumb}`, { method: 'DELETE', body: { message: `wallpaper: remove thumb ${wp.thumb}`, sha: thumbSha, branch: BRANCH } }); } catch { /* */ }
   }
 
-  // update json without it
-  const next = data.filter((w) => w.id !== id);
+  // update json without it — always from the live copy
+  const next = live.filter((w) => w.id !== id);
   const jsonB64 = btoa(unescape(encodeURIComponent(JSON.stringify(next, null, 2))));
   await commitFile('src/data/wallpapers.json', jsonB64, `wallpaper: delete ${wp.title}`);
   return { ok: true, count: next.length };
@@ -195,7 +246,8 @@ export async function deleteWallpaper(id) {
 /* ---------- edit a wallpaper's metadata ---------- */
 export async function updateWallpaper(id, patch) {
   if (!getToken()) throw new Error('No GitHub token set.');
-  const next = data.map((w) => (w.id === id ? { ...w, ...patch } : w));
+  const live = await getLiveJson();
+  const next = live.map((w) => (w.id === id ? { ...w, ...patch } : w));
   const jsonB64 = btoa(unescape(encodeURIComponent(JSON.stringify(next, null, 2))));
   await commitFile('src/data/wallpapers.json', jsonB64, `wallpaper: edit ${id}`);
   return { ok: true, count: next.length };
