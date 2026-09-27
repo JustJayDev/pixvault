@@ -1,53 +1,23 @@
 // ============================================================
-// PixVault — Atria prompt client
+// PixVault — Atria prompt client (VAULT-MIGRATED)
+// ------------------------------------------------------------
 // Atria reads the live vault and writes a refined, never-used,
 // anti-AI-looking prompt. Text model only (no image gen).
-// Keys are bundled — the admin never has to enter them.
-// Requests rotate across keys with automatic failover.
+//
+// MIGRATION NOTE: This file previously bundled two Atria API keys
+// (BUILT_IN_KEYS) and rotated them in the browser. It no longer
+// holds ANY key. Requests now go through the DevVault, which keeps
+// the keys server-side and rotates them there. The browser sends
+// only the prompt text.
 // ============================================================
 import { wallpapers } from './wallpapers';
 import { getCategoryCounts, getAllTags } from './wallpapers';
+import { getVault } from './vault-instance';
 
-const ENDPOINT = 'https://api.atria-asi.ai/v1/chat/completions';
 const MODEL = 'Atria-Dawn-Preview';
-const KEY_STORE = 'pixvault:atria-keys';
 
-/* bundled keys — always available, no setup required.
-   Assembled at runtime so no complete key appears as a single
-   literal string in the built bundle. */
-const BUILT_IN_KEYS = [
-  ['atr_sMrzdSm7aB', '-bnYPXt9Tnb8fQipRqrTIC'],
-  ['atr_LS6PyK3NRJ', 'xO7RS8BdCgY5iOE1_wJBvY'],
-].map((p) => p.join(''));
-
-/* admin can add extra keys in Settings; they merge with the built-ins */
-export function getKeys() {
-  let extra = [];
-  try {
-    const raw = localStorage.getItem(KEY_STORE);
-    const arr = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(arr)) extra = arr.filter(Boolean);
-  } catch { /* */ }
-  return [...BUILT_IN_KEYS, ...extra].filter((v, i, a) => a.indexOf(v) === i);
-}
-export function getExtraKeys() {
-  try {
-    const raw = localStorage.getItem(KEY_STORE);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter(Boolean) : [];
-  } catch { return []; }
-}
-export function getKeyCount() {
-  return getKeys().length;
-}
-export function setExtraKeys(keys) {
-  try { localStorage.setItem(KEY_STORE, JSON.stringify(keys.filter(Boolean))); } catch { /* */ }
-}
-
-/* round-robin pointer so repeated calls spread across keys */
-let keyIdx = 0;
-
-/* The system prompt that makes Atria a wallpaper-prompt specialist */
+/* The system prompt that makes Atria a wallpaper-prompt specialist.
+   Unchanged from the previous implementation. */
 const SYSTEM = `You are the PixVault prompt engine. You design ONE premium wallpaper generation prompt per request.
 
 Rules — follow exactly:
@@ -88,41 +58,20 @@ function userPacket({ category, device, mode, hint }) {
   ].join('\n');
 }
 
-/* one attempt against a single key, with a hard timeout */
-function attempt(key, payload, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => { ctrl.abort(); reject(new Error('timeout')); }, timeoutMs);
-    fetch(ENDPOINT, {
-      method: 'POST',
-      signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        clearTimeout(timer);
-        const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
-        let j = null;
-        try { j = JSON.parse(text); } catch { throw new Error('bad JSON'); }
-        const content = j?.choices?.[0]?.message?.content;
-        if (!content || !content.trim()) throw new Error('empty content');
-        resolve(content.trim());
-      })
-      .catch((e) => { clearTimeout(timer); reject(e); });
-  });
+/* The number of Atria keys is now reported by the Vault, not counted
+   in the browser. Returns 0 when not connected. */
+export function getKeyCount() {
+  try { return getVault().isAuthenticated() ? 1 : 0; } catch { return 0; }
 }
+/* Kept for the Settings UI so nothing breaks, but it no longer reads
+   or writes any key material — there is nothing client-side to store. */
+export function getExtraKeys() { return []; }
+export function setExtraKeys() { /* no-op: keys live in the Vault now */ }
 
-/* Call Atria with rotation + hedged failover.
-   The first key is tried immediately; if it doesn't answer within
-   HEDGE_MS the next key is launched in parallel and whichever
-   answers first wins. Fast, and immune to any single slow/dead key. */
-const HEDGE_MS = 5000;
-
+/* Call Atria through the Vault. Keys rotate server-side. */
 export async function generatePrompt({ category, device = 'phone', mode = 'curated', hint = '' }) {
-  const keys = getKeys();
-  if (!keys.length) throw new Error('No Atria API key available.');
-
+  const vault = getVault();
+  if (!vault.isAuthenticated()) throw new Error('Not authorized with the Vault. Open Settings → Connect Vault.');
   const payload = {
     model: MODEL,
     messages: [
@@ -135,44 +84,6 @@ export async function generatePrompt({ category, device = 'phone', mode = 'curat
        and hides the answer inside reasoning_content. */
     extra_body: { enable_thinking: false },
   };
-
-  const start = keyIdx % keys.length;
-  keyIdx++;
-
-  /* ordered list beginning at the rotation pointer */
-  const order = keys.map((_, i) => keys[(start + i) % keys.length]);
-
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let failures = 0;
-    const errors = [];
-    const timers = [];
-
-    const launch = (key) => {
-      attempt(key, payload, 45000).then(
-        (text) => {
-          if (settled) return;
-          settled = true;
-          timers.forEach(clearTimeout);
-          resolve(text);
-        },
-        (e) => {
-          if (settled) return;
-          errors.push(`${key.slice(0, 10)}… ${e.message}`);
-          failures++;
-          if (failures >= order.length) {
-            settled = true;
-            timers.forEach(clearTimeout);
-            reject(new Error(`All ${order.length} Atria keys failed. ${errors.join(' | ')}`));
-          }
-        }
-      );
-    };
-
-    /* launch the first key now, stagger the rest as a hedge */
-    order.forEach((key, i) => {
-      if (i === 0) launch(key);
-      else timers.push(setTimeout(() => launch(key), HEDGE_MS * i));
-    });
-  });
+  const text = await vault.chat(payload.messages, MODEL);
+  return String(text || '').trim();
 }

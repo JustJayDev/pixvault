@@ -15,6 +15,7 @@ import {
   getToken, setToken, clearToken, publishWallpaper, deleteWallpaper,
   updateWallpaper, getDimensions, deviceFor, slugify, getLiveWallpapers,
 } from '../lib/github';
+import { getVault, initVaultFromRedirect } from '../lib/vault-instance';
 import { wallpapers as LIVE } from '../lib/wallpapers';
 
 /* ===== admin password =====
@@ -648,101 +649,68 @@ function ManageRow({ wp, busy, editing, onEdit, onCancel, onDelete, onSave }) {
 
 /* ================= SETTINGS tab ================= */
 function SettingsTab() {
-  const [atriaText, setAtriaText] = useState(() => getExtraKeys().join('\n'));
-  const [token, setToken] = useState(() => {
-    const t = getToken();
-    /* the built-in token shows as empty (override field stays blank) */
-    return t.startsWith('ghp_') && t.length === 40 ? '' : t;
-  });
-  const [saved, setSaved] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [vaultConnected, setVaultConnected] = useState(() => getVault().isAuthenticated());
+  const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState('');
 
-  const saveAll = () => {
-    const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
-    setExtraKeys(keys);
-    if (token.trim()) setToken(token.trim()); else clearToken();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const connect = () => {
+    /* sends the admin to the Vault; it redirects back with a code in
+       the URL fragment, which initVaultFromRedirect() exchanges */
+    window.location.href = getVault().authorizeUrl();
   };
-
+  const disconnect = () => {
+    getVault().logout();
+    setVaultConnected(false);
+    setTestResult('');
+  };
   const testAtria = async () => {
-    setTesting(true); setTestResult('');
+    setBusy(true); setTestResult('');
     try {
-      const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
-      setExtraKeys(keys);
       const p = await generatePrompt({ category: 'nature', device: 'phone', mode: 'random', hint: '' });
       setTestResult('OK — Atria responded: "' + p.slice(0, 70) + '…"');
     } catch (e) {
       setTestResult('Failed: ' + e.message);
-    } finally { setTesting(false); }
+    } finally { setBusy(false); }
   };
-
-  const keyCount = getKeyCount();
 
   return (
     <div>
       <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ color: 'var(--accent)' }}><KeyRound size={17} /></span>
-          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Atria API keys</h3>
+          <span style={{ color: 'var(--accent)' }}><ShieldCheck size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Developer Vault</h3>
           <span className="tag-chip" style={{ marginLeft: 'auto' }}>
-            <CheckCircle2 size={10} style={{ marginRight: 4 }} /> {keyCount} active
+            {vaultConnected
+              ? <><CheckCircle2 size={10} style={{ marginRight: 4 }} /> connected</>
+              : <><AlertTriangle size={10} style={{ marginRight: 4 }} /> not connected</>}
           </span>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          {keyCount} keys are bundled and rotate automatically — if one fails or times out, the next
-          one is used instantly. You don't need to add anything. Add more below only if you want to.
+          The GitHub token and Atria keys now live in the Developer Vault — a server-side
+          secret store. They are never shipped in this bundle and never touch your browser.
+          Publishing and prompt generation only work while a Vault session is connected.
         </p>
-        <label className="field-label">Extra keys (optional)</label>
-        <textarea
-          className="field-input"
-          value={atriaText}
-          onChange={(e) => setAtriaText(e.target.value)}
-          rows={2}
-          spellCheck={false}
-          style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
-          placeholder="atr_..."
-        />
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button className="btn btn-sm" onClick={testAtria} disabled={testing}>
-            {testing ? <RefreshCw size={13} className="spin" /> : <Zap size={13} />}
-            {testing ? 'Testing…' : 'Test connection'}
-          </button>
-          {testResult && (
-            <span className="font-mono" style={{ fontSize: 11.5, color: testResult.startsWith('OK') ? '#6ee7b7' : '#fca5a5', alignSelf: 'center', lineHeight: 1.5 }}>
-              {testResult}
-            </span>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {vaultConnected ? (
+            <>
+              <button className="btn btn-sm" onClick={testAtria} disabled={busy}>
+                {busy ? <RefreshCw size={13} className="spin" /> : <Zap size={13} />}
+                {busy ? 'Testing…' : 'Test Atria connection'}
+              </button>
+              <button className="btn btn-sm" onClick={disconnect}>Disconnect</button>
+            </>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={connect}>
+              <ShieldCheck size={13} /> Connect the Vault
+            </button>
           )}
         </div>
+        {testResult && (
+          <div className="font-mono" style={{ fontSize: 11.5, color: testResult.startsWith('OK') ? '#6ee7b7' : '#fca5a5', marginTop: 10, lineHeight: 1.5 }}>
+            {testResult}
+          </div>
+        )}
       </div>
-
-      <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ color: 'var(--accent)' }}><ShieldCheck size={17} /></span>
-          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>GitHub token</h3>
-          <span className="tag-chip" style={{ marginLeft: 'auto' }}>
-            <CheckCircle2 size={10} style={{ marginRight: 4 }} /> built-in
-          </span>
-        </div>
-        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          A token is already bundled — publishing, editing, and deleting work out of the box.
-          Only change this if you want to use a different one.
-        </p>
-        <label className="field-label">Override token (optional)</label>
-        <input
-          className="field-input" value={token}
-          onChange={(e) => setToken(e.target.value)}
-          spellCheck={false}
-          style={{ fontFamily: 'var(--mono)', fontSize: 12 }}
-          placeholder="leave empty to use the built-in token"
-        />
-      </div>
-
-      <button className="btn btn-primary" onClick={saveAll} style={{ justifyContent: 'center', width: '100%' }}>
-        {saved ? <Check size={15} /> : <ShieldCheck size={15} />}
-        {saved ? 'Saved' : 'Save settings'}
-      </button>
     </div>
   );
 }
@@ -752,9 +720,15 @@ const Admin = () => {
   useReveal();
   const [ok, setOk] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
-  });
+});
   const [tab, setTab] = useState('generate');
   const [liveCount, setLiveCount] = useState(null);
+
+  /* if the Vault just redirected back with an auth code in the URL
+     fragment, exchange it now for an in-memory access token */
+  useEffect(() => {
+    initVaultFromRedirect().catch(() => { /* surfaced in Settings */ });
+  }, []);
 
   /* fetch the live wallpaper count for the sidebar stat */
   useEffect(() => {
