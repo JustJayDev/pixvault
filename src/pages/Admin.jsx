@@ -4,7 +4,7 @@ import {
   RefreshCw, Smartphone, Monitor, ArrowLeft, KeyRound, Trash2,
   Image as ImageIcon, CheckCircle2, Clock, Upload, Pencil, X,
   Settings as SettingsIcon, History as HistoryIcon, LayoutGrid, Zap,
-  AlertTriangle,
+  Search, AlertTriangle,
 } from 'lucide-react';
 import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
