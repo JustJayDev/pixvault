@@ -1,71 +1,41 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   Lock, ShieldCheck, Sparkles, Copy, Check, Wand2, BarChart3,
-  RefreshCw, ChevronRight, Smartphone, Monitor, ArrowLeft,
+  RefreshCw, Smartphone, Monitor, ArrowLeft, KeyRound, Trash2,
+  Image as ImageIcon, CheckCircle2, Clock, Upload, Pencil, X,
+  Settings as SettingsIcon, History as HistoryIcon, LayoutGrid, Zap,
 } from 'lucide-react';
-import {
-  analyzeVault, suggestNext, buildPrompt, promptForSuggestion,
-  CATEGORY_CATALOG, DEVICE_SPECS,
-} from '../lib/promptEngine';
+import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
 import { Link } from 'react-router-dom';
+import { getKeys, setKeys, generatePrompt } from '../lib/atria';
+import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
+import {
+  getToken, setToken, clearToken, publishWallpaper, deleteWallpaper,
+  updateWallpaper, getDimensions, deviceFor, slugify,
+} from '../lib/github';
+import { wallpapers as LIVE } from '../lib/wallpapers';
 
-/* The admin gate. Change this to your own password. */
+/* ===== admin password (change in source) ===== */
 const ADMIN_PASSWORD = 'pixvault-admin';
-
 const SESSION_KEY = 'pixvault:admin-ok';
 
-function useAdminGate() {
-  const [ok, setOk] = useState(() => {
-    try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
-  });
-  const [err, setErr] = useState('');
-  const [pw, setPw] = useState('');
+const TABS = [
+  { id: 'generate', label: 'Generate', icon: Wand2 },
+  { id: 'history', label: 'History', icon: HistoryIcon },
+  { id: 'manage', label: 'Wallpapers', icon: LayoutGrid },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+];
 
-  const submit = (e) => {
-    e.preventDefault();
-    if (pw === ADMIN_PASSWORD) {
-      setOk(true);
-      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* */ }
-    } else {
-      setErr('Wrong password. Try again.');
-      setPw('');
-    }
-  };
-  return { ok, err, pw, setPw, submit };
-}
-
-/* ---------- small UI helpers ---------- */
-function StatCard({ icon, label, value, sub }) {
-  return (
-    <div className="admin-card" style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: 'var(--accent)' }}>{icon}</span>
-        <span className="font-mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)' }}>
-          {label}
-        </span>
-      </div>
-      <div className="font-serif" style={{ fontSize: 30, fontWeight: 700, marginTop: 6, lineHeight: 1 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
-
-function CopyButton({ text, label = 'Copy prompt' }) {
+/* ================= small helpers ================= */
+function CopyButton({ text, label = 'Copy' }) {
   const [copied, setCopied] = useState(false);
   const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // fallback for older browsers
+    try { await navigator.clipboard.writeText(text); }
+    catch {
       const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
       try { document.execCommand('copy'); } catch { /* */ }
       ta.remove();
     }
@@ -80,61 +50,160 @@ function CopyButton({ text, label = 'Copy prompt' }) {
   );
 }
 
-/* ---------- one suggestion card with its generated prompt ---------- */
-function SuggestionCard({ s, index }) {
-  const [prompt, setPrompt] = useState(() => promptForSuggestion(s));
-  const [device, setDevice] = useState(s.device);
-  const [palette, setPalette] = useState(s.palette);
-  const [subject, setSubject] = useState(s.subject);
-  const [showFull, setShowFull] = useState(false);
+function StatusPill({ status }) {
+  const map = {
+    pending:  { label: 'Pending',  color: 'var(--dim)',    icon: Clock },
+    ready:    { label: 'Ready',    color: '#fbbf24',       icon: ImageIcon },
+    approved: { label: 'Approved', color: '#34d399',       icon: CheckCircle2 },
+    published:{ label: 'Live',     color: 'var(--accent)', icon: CheckCircle2 },
+  };
+  const m = map[status] || map.pending;
+  const Icon = m.icon;
+  return (
+    <span className="tag-chip" style={{ color: m.color, borderColor: m.color + '55', background: m.color + '12' }}>
+      <Icon size={10} style={{ marginRight: 4 }} />
+      {m.label}
+    </span>
+  );
+}
 
-  const regen = () => {
-    setPrompt(buildPrompt({ category: s.category, device, subject, palette, template: s.template }));
+/* ================= password gate ================= */
+function Gate({ onOk }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (pw === ADMIN_PASSWORD) {
+      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* */ }
+      onOk();
+    } else { setErr('Wrong password. Try again.'); setPw(''); }
+  };
+  return (
+    <section className="hero" style={{ minHeight: '62vh' }}>
+      <div className="hero-glow" aria-hidden="true" />
+      <div className="wrap" style={{ maxWidth: 460 }}>
+        <form onSubmit={submit} className="admin-card reveal" style={{ padding: 30, marginTop: 40 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+            <span style={{
+              width: 52, height: 52, borderRadius: 15, display: 'grid', placeItems: 'center',
+              background: 'var(--accent-dim)', color: 'var(--accent)',
+            }}>
+              <Lock size={24} />
+            </span>
+            <div>
+              <span className="eyebrow">Restricted</span>
+              <h2 className="font-serif" style={{ fontSize: 24, fontWeight: 700, margin: '8px 0 0' }}>
+                Admin Panel
+              </h2>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+              Enter the password to manage prompts, approvals, and wallpapers.
+            </p>
+          </div>
+          <input
+            type="password" className="field-input" value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            placeholder="Password" autoFocus
+            style={{ marginTop: 20, textAlign: 'center', letterSpacing: '.2em' }}
+          />
+          {err && (
+            <div className="font-mono" style={{ color: '#f87171', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
+              {err}
+            </div>
+          )}
+          <button className="btn btn-primary" type="submit" style={{ width: '100%', marginTop: 14, justifyContent: 'center' }}>
+            <ShieldCheck size={15} /> Unlock
+          </button>
+          <Link to="/" style={{
+            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5,
+            marginTop: 16, fontSize: 12, color: 'var(--dim)', textDecoration: 'none',
+          }}>
+            <ArrowLeft size={13} /> Back to vault
+          </Link>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+/* ================= GENERATE tab ================= */
+function GenerateTab() {
+  const [category, setCategory] = useState('nature');
+  const [device, setDevice] = useState('phone');
+  const [mode, setMode] = useState('curated');
+  const [hint, setHint] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState('');
+  const [error, setError] = useState('');
+
+  const analysis = useMemo(() => analyzeVault(), []);
+  const keys = getKeys();
+
+  const run = async () => {
+    setLoading(true); setError(''); setResult('');
+    try {
+      const prompt = await generatePrompt({ category, device, mode, hint });
+      setResult(prompt);
+      addPrompt({ prompt, category, device, mode, hint });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="admin-card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <span
-            className="font-mono"
-            style={{
-              flex: 'none', width: 24, height: 24, borderRadius: 7,
-              background: 'var(--accent-dim)', color: 'var(--accent)',
-              display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700,
-            }}
-          >
-            {index + 1}
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span className="font-serif" style={{ fontSize: 17, fontWeight: 700 }}>
-                {s.label}
-              </span>
-              <span className="tag-chip">{s.category}</span>
-              <span className="tag-chip">{device === 'desktop' ? 'desktop' : 'phone'}</span>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
-              {s.reason}
-            </p>
-          </div>
+    <div>
+      <div className="admin-card" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <span style={{ color: 'var(--accent)' }}><Wand2 size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>
+            Prompt Generator
+          </h3>
+          {keys.length ? (
+            <span className="tag-chip" style={{ marginLeft: 'auto' }}>
+              <CheckCircle2 size={10} style={{ marginRight: 4 }} /> {keys.length} Atria key{keys.length > 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className="tag-chip" style={{ marginLeft: 'auto', color: '#f87171', borderColor: '#f8717155', background: '#f8717112' }}>
+              no API key
+            </span>
+          )}
         </div>
 
-        {/* subject input */}
-        <label className="field-label" style={{ marginTop: 14 }}>Subject</label>
-        <input
-          className="field-input"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="e.g. lone astronaut adrift above a ringed planet"
-        />
+        {/* mode */}
+        <label className="field-label">Mode</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          {[
+            { k: 'curated', label: 'Curated — fill vault gaps' },
+            { k: 'random', label: 'Random — any trending subject' },
+          ].map((m) => (
+            <button
+              key={m.k}
+              className={'chip' + (mode === m.k ? ' active' : '')}
+              onClick={() => setMode(m.k)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
 
-        {/* device + palette controls */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 150px', minWidth: 140 }}>
+        {/* category + device */}
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 200px', minWidth: 170 }}>
+            <label className="field-label">Category</label>
+            <select className="field-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORY_CATALOG.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.label} — {analysis.counts[c.name] || 0} in vault
+                </option>
+              ))}
+            </select>
+          </div>
+                   <div style={{ flex: '1 1 170px', minWidth: 150 }}>
             <label className="field-label">Device</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              {(Object.keys(DEVICE_SPECS)).map((d) => (
+              {Object.keys(DEVICE_SPECS).map((d) => (
                 <button
                   key={d}
                   className={'chip' + (device === d ? ' active' : '')}
@@ -147,194 +216,487 @@ function SuggestionCard({ s, index }) {
               ))}
             </div>
           </div>
-          <div style={{ flex: '2 1 220px', minWidth: 180 }}>
-            <label className="field-label">Palette</label>
-            <select
-              className="field-input"
-              value={palette}
-              onChange={(e) => setPalette(e.target.value)}
-            >
-              {CATEGORY_CATALOG.find((c) => c.name === s.category)?.palettes.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
         </div>
+
+        {/* hint */}
+        <label className="field-label" style={{ marginTop: 14 }}>Extra direction (optional)</label>
+        <input
+          className="field-input" value={hint}
+          onChange={(e) => setHint(e.target.value)}
+          placeholder="e.g. moody, rain, neon, no people"
+        />
+
+        <button
+          className="btn btn-primary"
+          onClick={run}
+          disabled={loading}
+          style={{ width: '100%', marginTop: 16, justifyContent: 'center', opacity: loading ? 0.7 : 1 }}
+        >
+          {loading ? <RefreshCw size={15} className="spin" /> : <Sparkles size={15} />}
+          {loading ? 'Atria is analyzing your vault…' : 'Generate refined prompt'}
+        </button>
+
+        {error && (
+          <div className="font-mono" style={{ color: '#f87171', fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+              <span className="font-mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)' }}>
+                Refined prompt — saved to history
+              </span>
+              <CopyButton text={result} label="Copy prompt" />
+            </div>
+            <pre className="prompt-box">{result}</pre>
+            <p style={{ fontSize: 12, color: 'var(--dim)', margin: '10px 0 0', lineHeight: 1.55 }}>
+              Paste this into ChatGPT (GPT-Image-2) → attach the result in the{' '}
+              <b style={{ color: 'var(--muted)' }}>History</b> tab → approve to publish.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* generated prompt */}
-      <div style={{ padding: '14px 18px 18px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-          <span className="font-mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)' }}>
-            GPT-Image-2 prompt
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm" onClick={regen} style={{ flex: 'none' }}>
-              <RefreshCw size={13} /> Rebuild
-            </button>
-            <CopyButton text={prompt} />
-          </div>
-        </div>
-        <pre
-          className="prompt-box"
-          onClick={() => setShowFull((o) => !o)}
-          style={{ maxHeight: showFull ? 'none' : 132, cursor: 'pointer' }}
-          title="click to expand"
-        >
-{prompt}
-        </pre>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-          <button
-            onClick={() => setShowFull((o) => !o)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-              color: 'var(--dim)', fontSize: 11.5, fontFamily: 'var(--mono)',
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}
-          >
-            {showFull ? 'collapse' : 'expand'} <ChevronRight size={12} style={{ transform: showFull ? 'rotate(-90deg)' : 'rotate(90deg)' }} />
-          </button>
-        </div>
+      {/* mini vault readout */}
+      <div className="admin-card" style={{ padding: 16, marginTop: 14, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ color: 'var(--accent)' }}><BarChart3 size={16} /></span>
+        <span className="font-mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+          vault: {analysis.total} · phone {analysis.deviceSplit.phone} · desktop {analysis.deviceSplit.desktop}
+        </span>
+        <span className="font-mono" style={{ fontSize: 11.5, color: 'var(--dim)' }}>
+          Atria sees your {analysis.total} existing wallpapers and will not repeat them
+        </span>
       </div>
     </div>
   );
 }
 
-/* ---------- the page ---------- */
-const Admin = () => {
-  useReveal();
-  const { ok, err, pw, setPw, submit } = useAdminGate();
-  const analysis = useMemo(() => analyzeVault(), []);
-  const [suggestions, setSuggestions] = useState(() => suggestNext(6));
+/* ================= HISTORY tab ================= */
+function HistoryTab() {
+  const [history, setHistory] = useState(() => getHistory());
+  const [busy, setBusy] = useState({});
+  const [error, setError] = useState('');
 
-  const refresh = () => setSuggestions(suggestNext(6));
+  const refresh = () => setHistory(getHistory());
 
-  if (!ok) {
+  const onAttach = (id, file) => {
+    if (!file) return;
+    updatePrompt(id, { status: STATUS.READY, fileName: file.name, title: file.name.replace(/\.[^.]+$/, '') });
+    refresh();
+  };
+
+  const publish = async (id, file) => {
+    const item = history.find((p) => p.id === id);
+    if (!item || !file) { setError('Attach an image first.'); return; }
+    setBusy((b) => ({ ...b, [id]: 'publishing' }));
+    setError('');
+    try {
+      const dims = await getDimensions(file);
+      const title = (item.title && item.title.trim()) || slugify(item.prompt.slice(0, 24));
+      const entry = {
+        id: slugify(title),
+        title,
+        width: dims.w,
+        height: dims.h,
+        size: Math.max(0.1, Math.round((file.size / (1024 * 1024)) * 10) / 10),
+        category: item.category || 'abstract',
+        device: deviceFor(dims.w, dims.h),
+        tags: [item.category, 'ai-made', 'gpt-image-2'].filter(Boolean),
+        colors: [],
+        source: 'ai',
+        featured: false,
+        added: new Date().toISOString().slice(0, 10),
+      };
+      await publishWallpaper({ file, entry, commitMsg: `wallpaper: publish "${title}" from prompt` });
+      updatePrompt(id, { status: STATUS.PUBLISHED, publishedAt: new Date().toISOString(), title });
+      refresh();
+    } catch (e) {
+      setError(e.message);
+      updatePrompt(id, { status: STATUS.READY });
+      refresh();
+    } finally {
+      setBusy((b) => { const n = { ...b }; delete n[id]; return n; });
+    }
+  };
+
+  const del = (id) => {
+    if (!confirm('Delete this prompt from history?')) return;
+    removePrompt(id);
+    refresh();
+  };
+
+  if (!history.length) {
     return (
-      <section className="hero" style={{ minHeight: '62vh' }}>
-        <div className="hero-glow" aria-hidden="true" />
-        <div className="wrap" style={{ maxWidth: 460 }}>
-          <form onSubmit={submit} className="admin-card reveal" style={{ padding: 30, marginTop: 40 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-              <span
-                style={{
-                  width: 52, height: 52, borderRadius: 15, display: 'grid', placeItems: 'center',
-                  background: 'var(--accent-dim)', color: 'var(--accent)',
-                }}
-              >
-                <Lock size={24} />
-              </span>
-              <div>
-                <span className="eyebrow">Restricted</span>
-                <h2 className="font-serif" style={{ fontSize: 24, fontWeight: 700, margin: '8px 0 0' }}>
-                  Admin Panel
-                </h2>
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
-                Enter the password to access the prompt generator and vault analysis.
-              </p>
-            </div>
-
-            <input
-              type="password"
-              className="field-input"
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              placeholder="Password"
-              autoFocus
-              style={{ marginTop: 20, textAlign: 'center', letterSpacing: '.2em' }}
-            />
-            {err && (
-              <div className="font-mono" style={{ color: '#f87171', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-                {err}
-              </div>
-            )}
-            <button className="btn btn-primary" type="submit" style={{ width: '100%', marginTop: 14, justifyContent: 'center' }}>
-              <ShieldCheck size={15} /> Unlock
-            </button>
-            <Link
-              to="/"
-              style={{
-                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5,
-                marginTop: 16, fontSize: 12, color: 'var(--dim)', textDecoration: 'none',
-              }}
-            >
-              <ArrowLeft size={13} /> Back to vault
-            </Link>
-          </form>
-        </div>
-      </section>
+      <div className="admin-card" style={{ padding: 44, textAlign: 'center' }}>
+        <div style={{ fontSize: 32 }}>🧾</div>
+        <div className="font-serif" style={{ fontSize: 19, fontWeight: 700, marginTop: 8 }}>No prompts yet</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px auto 16px', maxWidth: 380, lineHeight: 1.6 }}>
+          Generate a prompt in the Generate tab and it will land here, waiting for its image.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="wrap" style={{ paddingTop: 34, paddingBottom: 44 }}>
-      {/* header */}
-      <div className="reveal" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <span className="eyebrow">Prompt Engine · GPT-Image-2</span>
-          <h1 className="font-serif" style={{ fontSize: 'clamp(26px,4.5vw,38px)', fontWeight: 700, margin: '8px 0 0', letterSpacing: '-.02em' }}>
-            Admin <span className="text-gradient">Panel</span>
-          </h1>
-          <p style={{ fontSize: 13.5, color: 'var(--muted)', margin: '8px 0 0', maxWidth: 560, lineHeight: 1.6 }}>
-            Reads your current vault, finds what's missing, and builds ready-to-paste
-            GPT-Image-2 prompts — only fresh ideas, nothing you already have.
-          </p>
+    <div>
+      {error && (
+        <div className="admin-card" style={{ padding: 12, marginBottom: 12, borderColor: '#f8717144' }}>
+          <span className="font-mono" style={{ color: '#fca5a5', fontSize: 12, lineHeight: 1.5 }}>{error}</span>
         </div>
-        <button className="btn btn-primary" onClick={refresh}>
-          <Wand2 size={15} /> New suggestions
+      )}
+      {history.map((p) => (
+        <HistoryRow
+          key={p.id} p={p} busy={busy[p.id]}
+          onAttach={onAttach} publish={publish} del={del}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HistoryRow({ p, busy, onAttach, publish, del }) {
+  const [file, setFile] = useState(null);
+  const [open, setOpen] = useState(false);
+  const fileInput = useRef(null);
+
+  const canPublish = p.status === STATUS.READY && file;
+
+  return (
+    <div className="admin-card" style={{ padding: 16, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <StatusPill status={p.status} />
+            <span className="tag-chip">{p.category}</span>
+            <span className="tag-chip">{p.device}</span>
+            <span className="tag-chip">{p.mode}</span>
+            <span className="font-mono" style={{ fontSize: 10.5, color: 'var(--dim)' }}>
+              {new Date(p.createdAt).toLocaleString()}
+            </span>
+          </div>
+          <p
+            className="font-mono"
+            onClick={() => setOpen((o) => !o)}
+            style={{
+              fontSize: 12, color: 'var(--muted)', margin: '9px 0 0', lineHeight: 1.6,
+              cursor: 'pointer',
+              display: '-webkit-box', WebkitLineClamp: open ? 'none' : 2, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {p.prompt}
+          </p>
+          {p.fileName && (
+            <div className="font-mono" style={{ fontSize: 11, color: 'var(--accent)', marginTop: 7 }}>
+              <ImageIcon size={11} style={{ verticalAlign: -1, marginRight: 5 }} />
+              {p.fileName}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 'none', justifyContent: 'flex-end' }}>
+          <CopyButton text={p.prompt} label="Copy" />
+          <button className="btn btn-sm" onClick={() => del(p.id)} disabled={busy}>
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* attach image + approve & publish */}
+      {(p.status === STATUS.PENDING || p.status === STATUS.READY) && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            ref={fileInput} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={(e) => { const f = e.target.files?.[0]; setFile(f); if (f) onAttach(p.id, f); }}
+          />
+          <button className="btn btn-sm" onClick={() => fileInput.current?.click()} disabled={busy}>
+            <Upload size={13} /> {p.status === STATUS.READY ? 'Replace image' : 'Attach image'}
+          </button>
+          {file && (
+            <button
+              className="btn btn-sm btn-primary" disabled={!canPublish || busy}
+              onClick={() => publish(p.id, file)}
+            >
+              {busy === 'publishing' ? <RefreshCw size={13} className="spin" /> : <CheckCircle2 size={13} />}
+              {busy === 'publishing' ? 'Publishing…' : 'Approve & publish'}
+            </button>
+          )}
+          {busy && busy !== 'publishing' && (
+            <span className="font-mono" style={{ fontSize: 11, color: 'var(--dim)' }}>{busy}…</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= WALLPAPERS (manage) tab ================= */
+function ManageTab() {
+  const [list, setList] = useState(() => [...LIVE]);
+  const [editing, setEditing] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [ok, setOk] = useState('');
+
+  const reload = () => {
+    setList([...LIVE]);
+    setError(''); setOk('');
+  };
+
+  const handleDelete = async (id) => {
+    const wp = list.find((w) => w.id === id);
+    if (!wp) return;
+    if (!confirm(`Delete "${wp.title}"? This removes it from the live site.`)) return;
+    setBusy(true); setError(''); setOk('');
+    try {
+      await deleteWallpaper(id);
+      setOk(`Deleted "${wp.title}" — deploying.`);
+      reload();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleSave = async (id, patch) => {
+    setBusy(true); setError(''); setOk('');
+    try {
+      await updateWallpaper(id, patch);
+      setOk(`Updated "${patch.title || id}".`);
+      setEditing(null);
+      reload();
+    } catch ( e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div>
+      {(error || ok) && (
+        <div className="admin-card" style={{ padding: 12, marginBottom: 12, borderColor: error ? '#f8717144' : 'rgba(52,211,153,.35)' }}>
+          <span className="font-mono" style={{ color: error ? '#fca5a5' : '#6ee7b7', fontSize: 12, lineHeight: 1.5 }}>
+            {error || ok}
+          </span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <span className="eyebrow">Live wallpapers</span>
+        <span className="font-mono" style={{ fontSize: 11, color: 'var(--dim)' }}>{list.length} total</span>
+        <button className="btn btn-sm" onClick={reload} style={{ marginLeft: 'auto' }} disabled={busy}>
+          <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
-      {/* vault analysis */}
-      <div className="reveal d1" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginTop: 26 }}>
-        <StatCard icon={<Sparkles size={15} />} label="In vault" value={analysis.total} sub="wallpapers total" />
-        <StatCard icon={<BarChart3 size={15} />} label="Categories" value={Object.keys(analysis.counts).length} sub={`of ${CATEGORY_CATALOG.length} possible`} />
-        <StatCard icon={<Smartphone size={15} />} label="Phone" value={analysis.deviceSplit.phone} sub="9:16 wallpapers" />
-        <StatCard icon={<Monitor size={15} />} label="Desktop" value={analysis.deviceSplit.desktop} sub="16:9 wallpapers" />
+      {list.map((wp) => (
+        <ManageRow
+          key={wp.id} wp={wp} busy={busy} editing={editing === wp.id}
+          onEdit={() => setEditing(wp.id)} onCancel={() => setEditing(null)}
+          onDelete={() => handleDelete(wp.id)} onSave={(patch) => handleSave(wp.id, patch)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ManageRow({ wp, busy, editing, onEdit, onCancel, onDelete, onSave }) {
+  const [title, setTitle] = useState(wp.title);
+  const [category, setCategory] = useState(wp.category);
+  const [featured, setFeatured] = useState(!!wp.featured);
+  const BASE = import.meta.env.BASE_URL || '/pixvault/';
+
+  if (editing) {
+    return (
+      <div className="admin-card" style={{ padding: 16, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '2 1 200px', minWidth: 160 }}>
+            <label className="field-label">Title</label>
+            <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div style={{ flex: '1 1 140px', minWidth: 130 }}>
+            <label className="field-label">Category</label>
+            <select className="field-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORY_CATALOG.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
+            </select>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: 'var(--muted)', paddingBottom: 10 }}>
+            <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+            Featured
+          </label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => onSave({ title, category, featured })} disabled={busy}>
+              <Check size={13} /> Save
+            </button>
+            <button className="btn btn-sm" onClick={onCancel} disabled={busy}>
+              <X size={13} /> Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-card" style={{ padding: 12, marginBottom: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <img
+        src={`${BASE}wallpapers/${wp.thumb}`}
+        alt={wp.title}
+        style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 8, flex: 'none', background: '#1c1917' }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span className="font-serif" style={{ fontWeight: 700, fontSize: 15 }}>{wp.title}</span>
+          {wp.featured && <span className="tag-chip">featured</span>}
+          <span className="tag-chip">{wp.category}</span>
+          <span className="tag-chip">{wp.device}</span>
+        </div>
+        <div className="font-mono" style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>
+          {wp.width}×{wp.height} · {wp.id}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
+        <button className="btn btn-sm" onClick={onEdit} disabled={busy}>
+          <Pencil size={13} /> Edit
+        </button>
+        <button className="btn btn-sm" onClick={onDelete} disabled={busy}>
+          <Trash2 size={13} /> Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ================= SETTINGS tab ================= */
+function SettingsTab() {
+  const [atriaText, setAtriaText] = useState(() => getKeys().join('\n'));
+  const [token, setToken] = useState(() => getToken());
+  const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState('');
+
+  const saveAll = () => {
+    const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
+    setKeys(keys);
+    if (token.trim()) setToken(token.trim()); else clearToken();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const testAtria = async () => {
+    setTesting(true); setTestResult('');
+    try {
+      const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
+      setKeys(keys);
+      const p = await generatePrompt({ category: 'nature', device: 'phone', mode: 'random', hint: '' });
+      setTestResult('OK — Atria responded: "' + p.slice(0, 70) + '…"');
+    } catch (e) {
+      setTestResult('Failed: ' + e.message);
+    } finally { setTesting(false); }
+  };
+
+  return (
+    <div>
+      <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ color: 'var(--accent)' }}><KeyRound size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Atria API keys</h3>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          One key per line. These power the prompt generator. They are stored only in this browser and never committed to the site source.
+        </p>
+        <textarea
+          className="field-input"
+          value={atriaText}
+          onChange={(e) => setAtriaText(e.target.value)}
+          rows={3}
+          spellCheck={false}
+          style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
+          placeholder="atr_..."
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" onClick={testAtria} disabled={testing}>
+            {testing ? <RefreshCw size={13} className="spin" /> : <Zap size={13} />}
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          {testResult && (
+            <span className="font-mono" style={{ fontSize: 11.5, color: testResult.startsWith('OK') ? '#6ee7b7' : '#fca5a5', alignSelf: 'center', lineHeight: 1.5 }}>
+              {testResult}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* gap strip */}
-      <div className="reveal d2 admin-card" style={{ marginTop: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span className="font-mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)', flex: 'none' }}>
-          Empty
-        </span>
-        {analysis.gaps.filter((g) => g.count === 0).map((g) => (
-          <span key={g.name} className="tag-chip" style={{ textTransform: 'capitalize' }}>{g.label}</span>
-        ))}
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-          — these get suggested first
-        </span>
+      <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ color: 'var(--accent)' }}><ShieldCheck size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>GitHub token</h3>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          Needed to publish, edit, and delete wallpapers. Use a token with <b style={{ color: 'var(--muted)' }}>Contents read/write</b> on the <b style={{ color: 'var(--muted)' }}>pixvault</b> repo. Stored in this browser only.
+        </p>
+        <input
+          className="field-input" value={token}
+          onChange={(e) => setToken(e.target.value)}
+          spellCheck={false}
+          style={{ fontFamily: 'var(--mono)', fontSize: 12 }}
+          placeholder="github_pat_... or ghp_..."
+        />
       </div>
 
-      <hr className="rule" style={{ margin: '26px 0' }} />
+      <button className="btn btn-primary" onClick={saveAll} style={{ justifyContent: 'center', width: '100%' }}>
+        {saved ? <Check size={15} /> : <ShieldCheck size={15} />}
+        {saved ? 'Saved' : 'Save settings'}
+      </button>
+    </div>
+  );
+}
 
-      {/* suggestions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <span className="eyebrow">Suggested next</span>
-        <span className="font-mono" style={{ fontSize: 11, color: 'var(--dim)' }}>
-          {suggestions.length} prompts · nothing duplicated from your vault
-        </span>
-      </div>
+/* ================= page shell ================= */
+const Admin = () => {
+  useReveal();
+  const [ok, setOk] = useState(() => {
+    try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
+  });
+  const [tab, setTab] = useState('generate');
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(330px,1fr))', gap: 16 }}>
-        {suggestions.map((s, i) => (
-          <SuggestionCard key={`${s.category}-${s.subject}-${i}`} s={s} index={i} />
-        ))}
-      </div>
+  if (!ok) return <Gate onOk={() => setOk(true)} />;
 
-      <div
-        className="admin-card reveal"
-        style={{ marginTop: 22, padding: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}
-      >
-        <span style={{ color: 'var(--accent)' }}><Sparkles size={16} /></span>
-        <span style={{ fontSize: 12.5, color: 'var(--muted)', flex: 1, minWidth: 220, lineHeight: 1.55 }}>
-          Copy a prompt → paste into ChatGPT (GPT-Image-2) → send me the generated
-          image and I'll add it to the vault with thumbnail and metadata.
-        </span>
-        <Link to="/" className="btn btn-sm" style={{ flex: 'none' }}>
+  return (
+    <div className="wrap" style={{ paddingTop: 34, paddingBottom: 44 }}>
+      <div className="reveal" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <span className="eyebrow">Prompt engine · approvals · publishing</span>
+          <h1 className="font-serif" style={{ fontSize: 'clamp(26px,4.5vw,38px)', fontWeight: 700, margin: '8px 0 0', letterSpacing: '-.02em' }}>
+            Admin <span className="text-gradient">Panel</span>
+          </h1>
+                   <p style={{ fontSize: 13.5, color: 'var(--muted)', margin: '8px 0 0', maxWidth: 560, lineHeight: 1.6 }}>
+            Generate refined prompts with Atria, attach the image you make, approve it, and it publishes itself.
+          </p>
+        </div>
+        <Link to="/" className="btn btn-sm">
           <ArrowLeft size={13} /> Back to vault
         </Link>
+      </div>
+
+      {/* tabs */}
+      <div className="reveal d1" style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={'chip' + (tab === t.id ? ' active' : '')}
+            >
+              <Icon size={14} /> {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="reveal d2" style={{ marginTop: 20 }}>
+        {tab === 'generate' && <GenerateTab />}
+        {tab === 'history' && <HistoryTab />}
+        {tab === 'manage' && <ManageTab />}
+        {tab === 'settings' && <SettingsTab />}
       </div>
     </div>
   );

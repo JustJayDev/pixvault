@@ -361,3 +361,7 @@ select.field-input option {
   transition: border-color .2s ease;
 }
 .prompt-box:hover { border-left-color: var(--accent); }
+
+/* spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
