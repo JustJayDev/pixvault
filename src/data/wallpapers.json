@@ -119,23 +119,5 @@
     "added": "2026-09-27",
     "file": "1000202500.jpg",
     "thumb": "thumbs/1000202500.webp"
-  },
-  {
-    "id": "e2e-test-1790500457986",
-    "title": "E2E Test",
-    "width": 1,
-    "height": 1,
-    "size": 0.1,
-    "category": "abstract",
-    "device": "phone",
-    "tags": [
-      "e2e-test"
-    ],
-    "colors": [],
-    "source": "ai",
-    "featured": false,
-    "added": "2026-09-27",
-    "file": "e2e-test-1790500457986.jpg",
-    "thumb": "thumbs/e2e-test-1790500457986.jpg.webp"
   }
 ]
