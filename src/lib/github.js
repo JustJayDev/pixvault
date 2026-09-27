@@ -187,7 +187,10 @@ export async function publishWallpaper({ file, entry, commitMsg }) {
   if (!file) throw new Error('No image file attached.');
 
   const base = slugify(entry.title || entry.id || 'wallpaper');
-  const fullName = `${base}.jpg`;
+  /* keep the extension the user actually uploaded — a .png saved as .jpg
+     would make the downloaded filename lie about the file's real format */
+  const ext = (file.name || '').split('.').pop().toLowerCase() || 'jpg';
+  const fullName = `${base}.${ext}`;
   const thumbName = `${base}.webp`;
 
   const imgB64 = await fileToBase64(file);

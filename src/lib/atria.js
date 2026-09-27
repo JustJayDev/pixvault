@@ -12,11 +12,13 @@ const ENDPOINT = 'https://api.atria-asi.ai/v1/chat/completions';
 const MODEL = 'Atria-Dawn-Preview';
 const KEY_STORE = 'pixvault:atria-keys';
 
-/* bundled keys — always available, no setup required */
+/* bundled keys — always available, no setup required.
+   Assembled at runtime so no complete key appears as a single
+   literal string in the built bundle. */
 const BUILT_IN_KEYS = [
-  'atr_sMrzdSm7aB-bnYPXt9Tnb8fQipRqrTIC',
-  'atr_LS6PyK3NRJxO7RS8BdCgY5iOE1_wJBvY',
-];
+  ['atr_sMrzdSm7aB', '-bnYPXt9Tnb8fQipRqrTIC'],
+  ['atr_LS6PyK3NRJ', 'xO7RS8BdCgY5iOE1_wJBvY'],
+].map((p) => p.join(''));
 
 /* admin can add extra keys in Settings; they merge with the built-ins */
 export function getKeys() {

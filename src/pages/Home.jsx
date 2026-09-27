@@ -5,6 +5,7 @@ import {
   getCategories,
   getFavs,
   toggleFav,
+  wallpapers,
 } from '../lib/wallpapers';
 import { useReveal } from '../lib/useReveal';
 import WallpaperCard from '../components/WallpaperCard';
@@ -38,6 +39,9 @@ const Home = () => {
   }, []);
 
   const categories = useMemo(() => getCategories(), []);
+
+  /* total across every category, for the "All" chip */
+  const allCount = useMemo(() => wallpapers.length, []);
 
   const list = useMemo(
     () => filterWallpapers({ q, category, device, sort, favoritesOnly: favsOnly, favs }),
@@ -114,7 +118,7 @@ const Home = () => {
               className={'chip' + (category === 'all' ? ' active' : '')}
               onClick={() => setCategory('all')}
             >
-              All <span className="count">{favs.length && category === 'all' ? '' : ''}</span>
+              All <span className="count">{allCount}</span>
             </button>
             {categories.map((c) => (
               <button

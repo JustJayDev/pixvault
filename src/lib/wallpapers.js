@@ -120,12 +120,14 @@ export const resolutionLabel = (wp) =>
 /* --- download the untouched original --- */
 export async function downloadOriginal(wp) {
   const url = fullUrl(wp);
+  /* keep the original file's extension so the saved name matches the bytes */
+  const ext = (wp.file || '').split('.').pop() || 'jpg';
   try {
     const res = await fetch(url);
     const blob = await res.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${wp.id}-${wp.width}x${wp.height}.jpg`;
+    a.download = `${wp.id}-${wp.width}x${wp.height}.${ext}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

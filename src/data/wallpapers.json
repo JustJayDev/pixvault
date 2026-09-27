@@ -119,5 +119,25 @@
     "added": "2026-09-27",
     "file": "1000202500.jpg",
     "thumb": "thumbs/1000202500.webp"
+  },
+  {
+    "id": "1000202502",
+    "title": "1000202502",
+    "file": "1000202502.jpg",
+    "thumb": "thumbs/1000202502.webp",
+    "width": 1672,
+    "height": 940,
+    "size": 1.9,
+    "category": "nature",
+    "device": "desktop",
+    "tags": [
+      "nature",
+      "ai-made",
+      "gpt-image-2"
+    ],
+    "colors": [],
+    "source": "ai",
+    "featured": false,
+    "added": "2026-09-27"
   }
 ]

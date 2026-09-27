@@ -19,7 +19,7 @@ const Lightbox = ({ list, index, onClose, onIndex, isFav, onFav }) => {
     [index, list, onIndex]
   );
 
-  // keyboard navigation
+  // keyboard navigation — keep the listener in sync with the current index
   useEffect(() => {
     if (!wp) return;
     const onKey = (e) => {
