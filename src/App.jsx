@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Link, NavLink } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import Home from './pages/Home.jsx';
 import About from './pages/About.jsx';
+import Admin from './pages/Admin.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 /* --- scroll progress bar --- */
@@ -87,6 +88,7 @@ export default function App() {
         <Routes location={location}>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
@@ -100,8 +102,10 @@ export default function App() {
           <span>
             Built by{' '}
             <a href="https://justjaydev.github.io" target="_blank" rel="noreferrer">
-              JustJayDev
+JustJayDev
             </a>
+            {' · '}
+            <Link to="/admin" style={{ color: 'var(--dim)' }}>Admin</Link>
           </span>
         </div>
       </footer>
