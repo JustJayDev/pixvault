@@ -50,14 +50,16 @@ async function gh(path, { method = 'GET', body } = {}) {
 
 /* read a file's current sha (needed to update/delete it).
    Always fetched fresh — a cached sha causes 409 conflicts when
-   anything else has committed since the page loaded. */
+   anything else has committed since the page loaded.
+   NOTE: no Cache-Control header — GitHub's CORS preflight rejects it,
+   which would block the whole request in the browser. The ?_t=
+   cache-buster in the query string is enough to defeat the browser cache. */
 async function getSha(path) {
   try {
     const r = await fetch(`${API}/contents/${path}?ref=${BRANCH}&_t=${Date.now()}`, {
       headers: {
         Authorization: `Bearer ${getToken()}`,
         Accept: 'application/vnd.github+json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
     if (!r.ok) return null;
@@ -153,7 +155,9 @@ export function deviceFor(w, h) {
 
 /* fetch the LIVE wallpapers.json from GitHub at publish time.
    The statically-imported bundle is stale the moment any publish
-   happens, which causes 409s and lost entries. Always read fresh. */
+   happens, which causes 409s and lost entries. Always read fresh.
+   No Cache-Control header — GitHub's CORS preflight rejects it and
+   the browser would block the request (see getSha above). */
 let liveCache = null;
 async function getLiveJson() {
   try {
@@ -161,7 +165,6 @@ async function getLiveJson() {
       headers: {
         Authorization: `Bearer ${getToken()}`,
         Accept: 'application/vnd.github+json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
     if (!r.ok) throw new Error(`fetch live json: HTTP ${r.status}`);
