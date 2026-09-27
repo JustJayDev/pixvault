@@ -1,13 +1,30 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
-export default function NotFound() {
+const NotFound = () => {
   return (
-    <div className="animate-fade-up flex flex-col items-center justify-center py-24 text-center">
-      <p className="font-display text-7xl font-bold grad-text">404</p>
-      <p className="mt-3 font-display text-xl font-semibold">This chamber is empty</p>
-      <p className="mt-1 text-sm text-slate-400">The wallpaper you are looking for is not in the vault.</p>
-      <Link to="/" className="btn-primary shine mt-8">Back to the vault</Link>
+    <div
+      className="wrap"
+      style={{ paddingTop: 90, paddingBottom: 60, textAlign: 'center' }}
+    >
+      <div
+        className="font-serif text-gradient"
+        style={{ fontSize: 'clamp(72px, 16vw, 150px)', fontWeight: 700, lineHeight: 1 }}
+      >
+        404
+      </div>
+      <p className="font-mono" style={{ color: 'var(--muted)', margin: '18px 0 6px', fontSize: 13 }}>
+        &gt; error: chamber_not_found
+      </p>
+      <p style={{ color: 'var(--dim)', margin: '0 0 26px', fontSize: 14 }}>
+        This part of the vault doesn't exist.
+      </p>
+      <Link to="/" className="btn btn-primary">
+        <ArrowLeft size={16} /> Back to the vault
+      </Link>
     </div>
-  )
-}
+  );
+};
+
+export default NotFound;
