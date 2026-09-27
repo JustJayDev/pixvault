@@ -8,7 +8,7 @@ import {
 import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
 import { Link } from 'react-router-dom';
-import { getKeys, setKeys, generatePrompt } from '../lib/atria';
+import { getKeyCount, getExtraKeys, setExtraKeys, generatePrompt } from '../lib/atria';
 import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
 import {
   getToken, setToken, clearToken, publishWallpaper, deleteWallpaper,
@@ -137,7 +137,7 @@ function GenerateTab() {
   const [error, setError] = useState('');
 
   const analysis = useMemo(() => analyzeVault(), []);
-  const keys = getKeys();
+  const keyCount = getKeyCount();
 
   const run = async () => {
     setLoading(true); setError(''); setResult('');
@@ -160,9 +160,9 @@ function GenerateTab() {
           <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>
             Prompt Generator
           </h3>
-          {keys.length ? (
+          {keyCount ? (
             <span className="tag-chip" style={{ marginLeft: 'auto' }}>
-              <CheckCircle2 size={10} style={{ marginRight: 4 }} /> {keys.length} Atria key{keys.length > 1 ? 's' : ''}
+              <CheckCircle2 size={10} style={{ marginRight: 4 }} /> {keyCount} Atria keys rotating
             </span>
           ) : (
             <span className="tag-chip" style={{ marginLeft: 'auto', color: '#f87171', borderColor: '#f8717155', background: '#f8717112' }}>
@@ -566,15 +566,19 @@ function ManageRow({ wp, busy, editing, onEdit, onCancel, onDelete, onSave }) {
 
 /* ================= SETTINGS tab ================= */
 function SettingsTab() {
-  const [atriaText, setAtriaText] = useState(() => getKeys().join('\n'));
-  const [token, setToken] = useState(() => getToken());
+  const [atriaText, setAtriaText] = useState(() => getExtraKeys().join('\n'));
+  const [token, setToken] = useState(() => {
+    const t = getToken();
+    /* the built-in token shows as empty (override field stays blank) */
+    return t.startsWith('ghp_') && t.length === 40 ? '' : t;
+  });
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState('');
 
   const saveAll = () => {
     const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
-    setKeys(keys);
+    setExtraKeys(keys);
     if (token.trim()) setToken(token.trim()); else clearToken();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -584,7 +588,7 @@ function SettingsTab() {
     setTesting(true); setTestResult('');
     try {
       const keys = atriaText.split('\n').map((s) => s.trim()).filter(Boolean);
-      setKeys(keys);
+      setExtraKeys(keys);
       const p = await generatePrompt({ category: 'nature', device: 'phone', mode: 'random', hint: '' });
       setTestResult('OK — Atria responded: "' + p.slice(0, 70) + '…"');
     } catch (e) {
@@ -592,21 +596,28 @@ function SettingsTab() {
     } finally { setTesting(false); }
   };
 
+  const keyCount = getKeyCount();
+
   return (
     <div>
       <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span style={{ color: 'var(--accent)' }}><KeyRound size={17} /></span>
           <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Atria API keys</h3>
+          <span className="tag-chip" style={{ marginLeft: 'auto' }}>
+            <CheckCircle2 size={10} style={{ marginRight: 4 }} /> {keyCount} active
+          </span>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          One key per line. These power the prompt generator. They are stored only in this browser and never committed to the site source.
+          {keyCount} keys are bundled and rotate automatically — if one fails or times out, the next
+          one is used instantly. You don't need to add anything. Add more below only if you want to.
         </p>
+        <label className="field-label">Extra keys (optional)</label>
         <textarea
           className="field-input"
           value={atriaText}
           onChange={(e) => setAtriaText(e.target.value)}
-          rows={3}
+          rows={2}
           spellCheck={false}
           style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
           placeholder="atr_..."
@@ -628,16 +639,21 @@ function SettingsTab() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span style={{ color: 'var(--accent)' }}><ShieldCheck size={17} /></span>
           <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>GitHub token</h3>
+          <span className="tag-chip" style={{ marginLeft: 'auto' }}>
+            <CheckCircle2 size={10} style={{ marginRight: 4 }} /> built-in
+          </span>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          Needed to publish, edit, and delete wallpapers. Use a token with <b style={{ color: 'var(--muted)' }}>Contents read/write</b> on the <b style={{ color: 'var(--muted)' }}>pixvault</b> repo. Stored in this browser only.
+          A token is already bundled — publishing, editing, and deleting work out of the box.
+          Only change this if you want to use a different one.
         </p>
+        <label className="field-label">Override token (optional)</label>
         <input
           className="field-input" value={token}
           onChange={(e) => setToken(e.target.value)}
           spellCheck={false}
           style={{ fontFamily: 'var(--mono)', fontSize: 12 }}
-          placeholder="github_pat_... or ghp_..."
+          placeholder="leave empty to use the built-in token"
         />
       </div>
 
