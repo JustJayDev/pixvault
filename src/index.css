@@ -660,7 +660,7 @@ select.field-input option {
 .admin-kpi .k-sub { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 3px; }
 
 /* ---- step rail (generate) ---- */
-.step-rail { display: flex; gap: 8px; flexWrap: wrap; margin-bottom: 18px; }
+.step-rail { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
 .step {
   display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 999px;
   font-size: 12px; font-weight: 600; color: var(--dim);

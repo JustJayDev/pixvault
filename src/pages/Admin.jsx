@@ -876,7 +876,7 @@ const Admin = () => {
             <span className="k-lbl">In the vault</span>
           </div>
           <div className="k-val">{vaultTotal}</div>
-          <div className="k-sub">phone {analysis.deviceSplit.phone} · desktop {analysis.deviceSplit.desktop}</div>
+          <div className="k-sub">live wallpapers in the gallery</div>
         </div>
         <div className="admin-kpi">
           <div className="k-top">
