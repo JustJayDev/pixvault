@@ -1,17 +1,5 @@
 [
   {
-    "id": "zz-rotate-test",
-    "title": "Rotate Test (edited)",
-    "file": "zz-rotate-test.png",
-    "thumb": "zz-rotate-test.png",
-    "category": "phone",
-    "tags": [
-      "test"
-    ],
-    "source": "rotate",
-    "createdAt": "2026-09-28T03:24:13.129Z"
-  },
-  {
     "id": "golden-divinity",
     "title": "Golden Divinity",
     "file": "golden-divinity.jpg",
