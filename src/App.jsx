@@ -5,6 +5,7 @@ import Home from './pages/Home.jsx';
 import About from './pages/About.jsx';
 import Admin from './pages/Admin.jsx';
 import NotFound from './pages/NotFound.jsx';
+import { initVaultFromRedirect } from './lib/vault-instance';
 
 /* --- scroll progress bar --- */
 function ScrollProgress() {
@@ -58,6 +59,12 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
+
+  /* Exchange a Vault auth code if one just came back in the URL. Runs at
+     the App root so it works no matter which route the redirect lands on. */
+  useEffect(() => {
+    initVaultFromRedirect().catch(() => { /* surfaced in the Settings UI */ });
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>

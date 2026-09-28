@@ -22,7 +22,7 @@
 const DEFAULT_VAULT = 'https://devvault.justjaydev.workers.dev';
 
 class DevVaultClient {
-  constructor({ baseUrl = DEFAULT_VAULT, redirectUri = (typeof location !== 'undefined' ? location.origin + location.pathname : ''), project = 'pixvault' } = {}) {
+  constructor({ baseUrl = DEFAULT_VAULT, redirectUri = (typeof location !== 'undefined' ? location.origin + location.pathname + location.search : ''), project = 'pixvault' } = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.redirectUri = redirectUri;
     this.project = project;

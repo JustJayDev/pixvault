@@ -13,7 +13,7 @@ export function getVault() {
   if (!instance) {
     instance = new DevVaultClient({
       baseUrl: VAULT_URL,
-      redirectUri: (typeof location !== 'undefined' ? location.origin + location.pathname : ''),
+      redirectUri: (typeof location !== 'undefined' ? location.origin + location.pathname + location.search : ''),
       project: 'pixvault',
     });
   }
@@ -21,7 +21,9 @@ export function getVault() {
 }
 
 /* called once at app startup: if the Vault just redirected back with
-   a code in the fragment, exchange it for an in-memory access token */
+   a code in the URL, exchange it for an in-memory access token.
+   This runs on every page (App root), so it works no matter which
+   route the redirect lands on. */
 export async function initVaultFromRedirect() {
   const vault = getVault();
   const code = DevVaultClient.codeFromLocation();
@@ -29,6 +31,14 @@ export async function initVaultFromRedirect() {
     try { await vault.exchangeCode(code); } catch { /* surface in the UI */ }
   }
   return vault.isAuthenticated();
+}
+
+/* the exchange needs the exact redirect_uri that was authorized. Because
+   the Vault redirects to the same URL the button was on, and the code is
+   delivered as a query param, the two line up automatically. */
+export function exchangeRedirectUri() {
+  if (typeof location === 'undefined') return '';
+  return location.origin + location.pathname + location.search;
 }
 
 export { DevVaultClient };
