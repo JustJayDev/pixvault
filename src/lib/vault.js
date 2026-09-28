@@ -56,6 +56,21 @@ class DevVaultClient {
     if (fromSearch) return decodeURIComponent(fromSearch[1]);
     return null;
   }
+  /* Reconstruct the redirect_uri that was originally authorized.
+     The Vault appends dv_code + project to the URL when it redirects
+     back, so this strips exactly those two params. The authorized
+     redirect_uri never contains the hash (the route lives there), so
+     this is correct whether the code arrived in the search string or
+     the fragment — and it means the exchange works even when the
+     client singleton is (re)built after the redirect, when
+     location.search is already polluted. */
+  static redirectUriFromLocation(loc = (typeof location !== 'undefined' ? location : null)) {
+    if (!loc) return '';
+    const u = new URL(loc.href);
+    u.searchParams.delete('dv_code');
+    u.searchParams.delete('project');
+    return u.origin + u.pathname + u.search;
+  }
 
   async exchangeCode(code, redirectUri = this.redirectUri) {
     const r = await fetch(this.baseUrl + '/api/oauth/token', {

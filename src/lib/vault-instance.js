@@ -28,7 +28,10 @@ export async function initVaultFromRedirect() {
   const vault = getVault();
   const code = DevVaultClient.codeFromLocation();
   if (code) {
-    try { await vault.exchangeCode(code); } catch { /* surface in the UI */ }
+    /* exchange with the redirect_uri that was AUTHORIZED, which is this
+       URL with the Vault's own response params removed — not whatever
+       this singleton happened to capture at construction time. */
+    try { await vault.exchangeCode(code, DevVaultClient.redirectUriFromLocation()); } catch { /* surface in the UI */ }
   }
   return vault.isAuthenticated();
 }
