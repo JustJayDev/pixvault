@@ -39,11 +39,22 @@ class DevVaultClient {
     return u.toString();
   }
 
-  /* the code comes back in the URL fragment (never sent to a server) */
+  /* the code comes back in the URL fragment (never sent to a server).
+
+     NOTE: this app uses HashRouter, so the fragment ALSO carries the
+     route. The Vault appends the code as `#/dv_code=...`, which the
+     router reads as the route `/dv_code=...` and renders 404 before
+     the Admin page can mount to exchange it. So we also accept the
+     code from a `?dv_code=` search param, which the Vault sets as a
+     query string — that keeps the hash (and therefore the route)
+     intact. */
   static codeFromLocation(loc = (typeof location !== 'undefined' ? location : null)) {
-    if (!loc || !loc.hash) return null;
-    const m = /dv_code=([^&]+)/.exec(loc.hash);
-    return m ? decodeURIComponent(m[1]) : null;
+    if (!loc) return null;
+    const fromHash = /dv_code=([^&]+)/.exec(loc.hash || '');
+    if (fromHash) return decodeURIComponent(fromHash[1]);
+    const fromSearch = /dv_code=([^&]+)/.exec(loc.search || '');
+    if (fromSearch) return decodeURIComponent(fromSearch[1]);
+    return null;
   }
 
   async exchangeCode(code, redirectUri = this.redirectUri) {
@@ -58,7 +69,12 @@ class DevVaultClient {
     this._expiresAt = Date.now() + (j.expires_in || 3600) * 1000;
     /* scrub the code from the URL so it can't be read from history */
     if (typeof history !== 'undefined' && history.replaceState) {
-      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* */ }
+      try {
+        const clean = new URL(location.href);
+        clean.searchParams.delete('dv_code');
+        clean.searchParams.delete('project');
+        history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
+      } catch { /* */ }
     }
     return j;
   }
