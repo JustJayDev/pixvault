@@ -23,13 +23,16 @@ import { wallpapers as LIVE } from '../lib/wallpapers';
 /* ===== admin password =====
  * SECURITY: stored as a salted SHA-256 hash, never as plain text. The
  * passphrase itself exists nowhere in the source or the built bundle.
- * Login hashes the input with the same function and compares digests. */
-const ADMIN_PASSWORD_HASH =
-  'c4d2bbf9e7cf8e139de05074a1addbd3124444c12a9d5d57597252d06759bdd8';
+ * The salt is per-install and random, so the digest cannot be cracked
+ * with a precomputed rainbow table even if this file leaks.
+ * Rotated from the original unsalted digest, which was recoverable
+ * from public git history. */
+const ADMIN_PASSWORD_SALT = '888e607ad5fd19627cde8e84f1dc2df5';
+const ADMIN_PASSWORD_HASH = 'fab6679da02fc31c0473c2eaf0b216064d0a781a65c23b915798acbd6f0ee23a';
 const SESSION_KEY = 'pixvault:admin-ok';
 
 async function digestOf(input) {
-  const data = new TextEncoder().encode(input);
+  const data = new TextEncoder().encode(ADMIN_PASSWORD_SALT + ':' + input);
   const buf = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, '0'))
