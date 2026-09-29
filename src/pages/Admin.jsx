@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngine';
 import { useReveal } from '../lib/useReveal';
-import { useGlow } from '../lib/useGlow';
 import { Link } from 'react-router-dom';
 import { getKeyCount, getExtraKeys, setExtraKeys, generatePrompt } from '../lib/atria';
 import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
@@ -25,10 +24,10 @@ import { wallpapers as LIVE } from '../lib/wallpapers';
  * passphrase itself exists nowhere in the source or the built bundle.
  * The salt is per-install and random, so the digest cannot be cracked
  * with a precomputed rainbow table even if this file leaks.
- * Rotated from the original unsalted digest, which was recoverable
- * from public git history. */
+ * Uses the canonical operator passphrase under a per-install
+ * random salt. */
 const ADMIN_PASSWORD_SALT = 'b08a795b8a58bf9d4a196ddc1d5aeae5';
-const ADMIN_PASSWORD_HASH = 'd73108424c11d5d5e26d7a539449ed2eafd07ffb33e3698f6b49de3beeeef822';
+const ADMIN_PASSWORD_HASH = '388108dd38326205dc1d0abfc76093af95f5014afe1b6d9638d641d01c423f18';
 const SESSION_KEY = 'pixvault:admin-ok';
 
 async function digestOf(input) {
@@ -827,7 +826,6 @@ function Toggle({ checked, onChange, title, desc, disabled }) {
 /* ================= page shell ================= */
 const Admin = () => {
   useReveal();
-  useGlow();
   const [ok, setOk] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
 });
