@@ -27,8 +27,8 @@ import { wallpapers as LIVE } from '../lib/wallpapers';
  * with a precomputed rainbow table even if this file leaks.
  * Rotated from the original unsalted digest, which was recoverable
  * from public git history. */
-const ADMIN_PASSWORD_SALT = '888e607ad5fd19627cde8e84f1dc2df5';
-const ADMIN_PASSWORD_HASH = 'fab6679da02fc31c0473c2eaf0b216064d0a781a65c23b915798acbd6f0ee23a';
+const ADMIN_PASSWORD_SALT = 'b08a795b8a58bf9d4a196ddc1d5aeae5';
+const ADMIN_PASSWORD_HASH = 'd73108424c11d5d5e26d7a539449ed2eafd07ffb33e3698f6b49de3beeeef822';
 const SESSION_KEY = 'pixvault:admin-ok';
 
 async function digestOf(input) {
