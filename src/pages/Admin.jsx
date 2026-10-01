@@ -11,7 +11,7 @@ import { analyzeVault, CATEGORY_CATALOG, DEVICE_SPECS } from '../lib/promptEngin
 import { useReveal } from '../lib/useReveal';
 import { Link } from 'react-router-dom';
 import { getKeyCount, getExtraKeys, setExtraKeys, generatePrompt } from '../lib/atria';
-import { getHistory, addPrompt, updatePrompt, removePrompt, STATUS } from '../lib/history';
+import { getHistory, addPrompt, updatePrompt, removePrompt, clearAll, size, MAX as MAX_HISTORY, STATUS } from '../lib/history';
 import {
   getToken, setToken, clearToken, publishWallpaper, deleteWallpaper,
   updateWallpaper, getDimensions, deviceFor, slugify, getLiveWallpapers,
@@ -274,7 +274,7 @@ function GenerateTab() {
           <div style={{ marginTop: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
               <span className="font-mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)' }}>
-                Refined prompt — saved to history
+                Refined prompt — saved to this session
               </span>
               <CopyButton text={result} label="Copy prompt" />
             </div>
@@ -355,6 +355,12 @@ function HistoryTab() {
     refresh();
   };
 
+  const clearEverything = () => {
+    if (!confirm('Clear all prompt history? This cannot be undone.')) return;
+    clearAll();
+    refresh();
+  };
+
   if (!history.length) {
     return (
       <div className="admin-card admin-empty">
@@ -369,6 +375,22 @@ function HistoryTab() {
 
   return (
     <div>
+      <div className="admin-manage-head" style={{ marginBottom: 12 }}>
+        <span className="eyebrow">This session only</span>
+        <span className="count">{size()} of {MAX_HISTORY}</span>
+        <button
+          className="btn btn-sm" onClick={clearEverything}
+          disabled={busy && Object.keys(busy).length > 0}
+          style={{ marginLeft: 'auto' }}
+        >
+          <Trash2 size={13} /> Clear all
+        </button>
+      </div>
+      <p style={{ fontSize: 11.5, color: 'var(--dim)', margin: '0 0 12px', lineHeight: 1.55 }}>
+        Prompt history is held in memory for this page session only — nothing is written to
+        your browser's disk storage, and it is cleared when you reload. Publishing is a GitHub
+        commit, so anything already live stays live.
+      </p>
       {error && (
         <div className="admin-card" style={{ padding: 12, marginBottom: 12, borderColor: '#f8717144' }}>
           <span className="font-mono" style={{ color: '#fca5a5', fontSize: 12, lineHeight: 1.5 }}>{error}</span>
