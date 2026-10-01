@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { checkDataIntegrity } from './data-integrity.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -159,6 +160,9 @@ if (!fs.existsSync(dataPath)) {
     } catch (e) {
       fail('src/data/wallpapers.json: invalid JSON - ' + e.message);
     }
+    /* per-entry integrity: required fields, unique ids, real files,
+       category in promptEngine's catalog. See scripts/data-integrity.mjs */
+    checkDataIntegrity(fail, notes);
   }
 }
 
